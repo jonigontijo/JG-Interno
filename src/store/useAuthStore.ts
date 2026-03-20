@@ -136,7 +136,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   login: async (username, password) => {
     const email = `${username.toLowerCase()}@jg.internal`;
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const loginPromise = supabase.auth.signInWithPassword({ email, password });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Login timeout - verifique sua conexão')), 10000)
+    );
+
+    let data: any, error: any;
+    try {
+      const result = await Promise.race([loginPromise, timeoutPromise]);
+      data = result.data;
+      error = result.error;
+    } catch (err: any) {
+      console.error('Login timeout/error:', err);
+      toast.error(err.message || 'Erro de conexão');
+      return false;
+    }
 
     if (error) {
       console.error('Login error:', error.message);
