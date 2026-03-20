@@ -622,7 +622,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           assignee: task.assignee,
           deadline: tomorrow,
           urgency: task.urgency,
-          status: "backlog",
+          status: "in_progress",
           weight: task.weight,
           estimatedHours: task.estimatedHours,
           hasRework: false,
