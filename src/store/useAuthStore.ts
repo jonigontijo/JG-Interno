@@ -77,7 +77,7 @@ interface AuthState {
   loadUsers: () => Promise<void>;
   submitRegistration: (data: { name: string; username: string; password: string; desiredRoles: string[]; message: string }) => Promise<boolean>;
   loadRegistrationRequests: () => Promise<void>;
-  approveRegistration: (requestId: string) => Promise<void>;
+  approveRegistration: (requestId: string) => Promise<boolean>;
   rejectRegistration: (requestId: string) => Promise<void>;
 }
 
@@ -157,7 +157,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const email = `${user.username.toLowerCase()}@jg.internal`;
     const password = user.password || `${user.username}123`;
 
-    // Use admin edge function to create user (auto-confirms email)
     const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-update-user', {
       body: {
         action: 'create',
@@ -319,7 +318,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   approveRegistration: async (requestId) => {
     const req = get().registrationRequests.find(r => r.id === requestId);
-    if (!req) return;
+    if (!req) return false;
 
     const adminName = get().currentUser?.name || 'Admin';
     const displayRole = req.desired_roles.join(', ');
@@ -336,7 +335,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       moduleAccess: DEFAULT_MODULES,
     });
 
-    if (!success) return;
+    if (!success) return false;
 
     await db('registration_requests')
       .update({
@@ -352,6 +351,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         r.id === requestId ? { ...r, status: 'approved' as const, reviewed_by: adminName, password_temp: '***' } : r
       ),
     }));
+    return true;
   },
 
   rejectRegistration: async (requestId) => {

@@ -95,7 +95,8 @@ export default function AdminPage() {
     const req = registrationRequests.find(r => r.id === id);
     if (!req) return;
     if (!window.confirm(`Aprovar o acesso de "${req.name}" (${req.username})?`)) return;
-    await approveRegistration(id);
+    const ok = await approveRegistration(id);
+    if (!ok) return;
     const displayRole = req.desired_roles.join(', ');
     addTeamMember({
       id: `u-${Date.now()}`, name: req.name, role: displayRole, roles: req.desired_roles,
