@@ -424,11 +424,6 @@ export default function LoginPage() {
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
             {loading ? "Entrando..." : "Entrar"}
           </button>
-          {!import.meta.env.VITE_SUPABASE_URL && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2">
-              <p className="text-[10px] text-destructive text-center">Variáveis de ambiente do Supabase não configuradas. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas configurações do deploy.</p>
-            </div>
-          )}
           <div className="flex items-center justify-between">
             <button
               type="button"

@@ -89,14 +89,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   initialized: false,
 
   initAuth: async () => {
-    const timeout = setTimeout(() => {
-      console.warn('[initAuth] Timeout after 8s - forcing initialization');
-      set({ isLoading: false, initialized: true });
-    }, 8000);
     try {
-      console.log('[initAuth] Starting...', { url: import.meta.env.VITE_SUPABASE_URL ? 'SET' : 'MISSING' });
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('[initAuth] Session:', session ? 'found' : 'none');
       if (session?.user) {
         const profile = await loadProfile(session.user.id);
         if (profile) {
@@ -104,11 +98,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       }
       await get().loadUsers();
-      console.log('[initAuth] Done');
-    } catch (err) {
-      console.error('[initAuth] Error:', err);
     } finally {
-      clearTimeout(timeout);
       set({ isLoading: false, initialized: true });
     }
   },
@@ -136,21 +126,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   login: async (username, password) => {
     const email = `${username.toLowerCase()}@jg.internal`;
 
-    const loginPromise = supabase.auth.signInWithPassword({ email, password });
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Login timeout - verifique sua conexão')), 10000)
-    );
-
-    let data: any, error: any;
-    try {
-      const result = await Promise.race([loginPromise, timeoutPromise]);
-      data = result.data;
-      error = result.error;
-    } catch (err: any) {
-      console.error('Login timeout/error:', err);
-      toast.error(err.message || 'Erro de conexão');
-      return false;
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       console.error('Login error:', error.message);
