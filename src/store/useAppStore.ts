@@ -608,7 +608,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
 
     // === Recurrence: recreate task based on frequency type ===
-    if (task.recurUntil && task.recurType) {
+    if (task.recurUntil) {
       const calcNextDate = (from: Date): string => {
         const rtype = task.recurType || "daily";
         const d = new Date(from);
