@@ -89,8 +89,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   initialized: false,
 
   initAuth: async () => {
+    const timeout = setTimeout(() => {
+      console.warn('[initAuth] Timeout after 8s - forcing initialization');
+      set({ isLoading: false, initialized: true });
+    }, 8000);
     try {
+      console.log('[initAuth] Starting...', { url: import.meta.env.VITE_SUPABASE_URL ? 'SET' : 'MISSING' });
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('[initAuth] Session:', session ? 'found' : 'none');
       if (session?.user) {
         const profile = await loadProfile(session.user.id);
         if (profile) {
@@ -98,7 +104,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       }
       await get().loadUsers();
+      console.log('[initAuth] Done');
+    } catch (err) {
+      console.error('[initAuth] Error:', err);
     } finally {
+      clearTimeout(timeout);
       set({ isLoading: false, initialized: true });
     }
   },
