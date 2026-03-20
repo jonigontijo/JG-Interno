@@ -100,6 +100,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } finally {
       set({ isLoading: false, initialized: true });
     }
+
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const profile = await loadProfile(session.user.id);
+        if (profile && profile.active) {
+          set({ currentUser: profile });
+          await get().loadUsers();
+        }
+      } else if (event === 'SIGNED_OUT') {
+        set({ currentUser: null });
+      }
+    });
   },
 
   loadUsers: async () => {

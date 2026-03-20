@@ -85,18 +85,21 @@ function AuthenticatedApp() {
   // Load data from DB when authenticated and data not yet loaded
   useEffect(() => {
     if (currentUser && !dataLoaded) {
-      loadFromDB().then(() => {
-        setDataLoaded(true);
-        // Setup sync AFTER data is loaded (not before!)
-        if (syncUnsubRef.current) {
-          syncUnsubRef.current();
-        }
-        syncUnsubRef.current = setupStoreSync(useAppStore.subscribe, useAppStore.getState);
-      });
+      loadFromDB()
+        .then(() => {
+          setDataLoaded(true);
+          if (syncUnsubRef.current) {
+            syncUnsubRef.current();
+          }
+          syncUnsubRef.current = setupStoreSync(useAppStore.subscribe, useAppStore.getState);
+        })
+        .catch((err) => {
+          console.error('Failed to load data from DB:', err);
+          setDataLoaded(true);
+        });
     }
 
     return () => {
-      // Cleanup sync on unmount
       if (syncUnsubRef.current) {
         syncUnsubRef.current();
         syncUnsubRef.current = null;
