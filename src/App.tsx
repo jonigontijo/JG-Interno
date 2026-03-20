@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useAppStore } from "@/store/useAppStore";
 import { setupStoreSync } from "@/lib/supabaseData";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -198,20 +198,48 @@ function AuthenticatedApp() {
   );
 }
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: "100vh", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ maxWidth: 400, textAlign: "center", color: "#fff" }}>
+            <h2 style={{ fontSize: 18, marginBottom: 8 }}>Algo deu errado</h2>
+            <p style={{ fontSize: 12, color: "#999", marginBottom: 16 }}>{this.state.error}</p>
+            <button onClick={() => window.location.reload()} style={{ padding: "8px 24px", borderRadius: 6, background: "#c5a236", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}>
+              Recarregar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/approve/:token" element={<ClientApprovalPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/*" element={<AuthenticatedApp />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/approve/:token" element={<ClientApprovalPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/*" element={<AuthenticatedApp />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

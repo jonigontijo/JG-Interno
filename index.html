@@ -24,7 +24,15 @@
 </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-loader" style="min-height:100vh;background:#1a1a1a;display:flex;align-items:center;justify-content:center">
+        <div style="text-align:center">
+          <div style="width:32px;height:32px;border:3px solid #333;border-top-color:#c5a236;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto"></div>
+          <p style="color:#888;font-size:12px;margin-top:12px">Carregando...</p>
+        </div>
+      </div>
+    </div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
