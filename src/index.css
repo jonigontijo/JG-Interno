@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 2%;
+    --foreground: 45 20% 92%;
+
+    --card: 220 20% 7%;
+    --card-foreground: 45 20% 92%;
+
+    --popover: 220 20% 9%;
+    --popover-foreground: 45 20% 92%;
+
+    --primary: 43 80% 50%;
+    --primary-foreground: 220 20% 4%;
+
+    --secondary: 220 15% 13%;
+    --secondary-foreground: 45 15% 80%;
+
+    --muted: 220 15% 11%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 43 60% 38%;
+    --accent-foreground: 45 20% 92%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 45 20% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 20% 4%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 220 20% 4%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 45 20% 98%;
+
+    --border: 220 15% 14%;
+    --input: 220 15% 14%;
+    --ring: 43 80% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 20% 3%;
+    --sidebar-foreground: 220 10% 60%;
+    --sidebar-primary: 43 80% 50%;
+    --sidebar-primary-foreground: 220 20% 4%;
+    --sidebar-accent: 220 15% 11%;
+    --sidebar-accent-foreground: 45 15% 88%;
+    --sidebar-border: 220 15% 12%;
+    --sidebar-ring: 43 80% 50%;
+
+    --chart-1: 43 80% 50%;
+    --chart-2: 217 91% 60%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 72% 51%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-backlog { @apply bg-muted text-muted-foreground; }
+  .status-pending { @apply bg-secondary text-secondary-foreground; }
+  .status-in-progress { @apply bg-info/15 text-info; }
+  .status-approval { @apply bg-warning/15 text-warning; }
+  .status-waiting { @apply bg-warning/10 text-warning/80; }
+  .status-priority { @apply bg-warning/20 text-warning; }
+  .status-urgent { @apply bg-destructive/15 text-destructive; }
+  .status-critical { @apply bg-destructive/25 text-destructive font-semibold; }
+  .status-done { @apply bg-success/15 text-success; }
+  .status-overdue { @apply bg-destructive/20 text-destructive; }
+  .status-blocked { @apply bg-destructive/10 text-destructive/70; }
+
+  .metric-card {
+    @apply rounded-lg border bg-card p-4 transition-colors hover:border-primary/30;
+  }
+
+  .kanban-column {
+    @apply flex flex-col gap-2 min-w-[280px] max-w-[320px] rounded-lg bg-muted/50 p-3;
+  }
+
+  .kanban-card {
+    @apply rounded-lg border bg-card p-3 cursor-pointer transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+  }
+
+  .nav-item-active {
+    @apply bg-sidebar-accent text-sidebar-primary font-medium;
+  }
+
+  .section-header {
+    @apply text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 py-2;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}

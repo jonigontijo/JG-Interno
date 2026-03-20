@@ -1,0 +1,2 @@
+ALTER TABLE public.client_posts ADD COLUMN IF NOT EXISTS posted boolean NOT NULL DEFAULT false;
+ALTER TABLE public.client_posts ADD COLUMN IF NOT EXISTS posted_at timestamp with time zone DEFAULT NULL;

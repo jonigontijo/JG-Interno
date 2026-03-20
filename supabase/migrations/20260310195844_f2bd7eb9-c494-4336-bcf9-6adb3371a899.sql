@@ -1,0 +1,1 @@
+ALTER TABLE public.client_team_assignments ADD COLUMN designation text NOT NULL DEFAULT 'titular';
