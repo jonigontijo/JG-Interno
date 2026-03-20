@@ -8,13 +8,14 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import type { Task } from "@/data/mockData";
 import { DatePicker } from "@/components/ui/date-picker";
+import { RecurrencePicker } from "@/components/ui/recurrence-picker";
 
 export default function TrafficPage() {
   const { tasks, clients, team, addTask, logAudit } = useAppStore();
   const currentUser = useAuthStore((s) => s.currentUser);
   const trafficTasks = tasks.filter(t => t.module === "Tráfego");
   const [showModal, setShowModal] = useState(false);
-  const [newTask, setNewTask] = useState({ title: "", clientId: "", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], type: "Otimização", description: "", recurUntil: "" });
+  const [newTask, setNewTask] = useState({ title: "", clientId: "", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], type: "Otimização", description: "", recurType: undefined as Task["recurType"], recurUntil: "", recurDaysInterval: undefined as Task["recurDaysInterval"] });
 
   const handleCreate = () => {
     if (!newTask.title || !newTask.clientId || !newTask.assignee || !newTask.deadline) {
@@ -40,11 +41,13 @@ export default function TrafficPage() {
       createdAt: new Date().toISOString().slice(0, 10),
       description: newTask.description || undefined,
       recurUntil: newTask.recurUntil || undefined,
+      recurType: newTask.recurType,
+      recurDaysInterval: newTask.recurDaysInterval,
     });
     logAudit(currentUser?.name || 'Desconhecido', 'Criou tarefa', newTask.title);
     toast.success("Tarefa criada!");
     setShowModal(false);
-    setNewTask({ title: "", clientId: "", assignee: "", deadline: "", urgency: "normal", type: "Otimização", description: "", recurUntil: "" });
+    setNewTask({ title: "", clientId: "", assignee: "", deadline: "", urgency: "normal", type: "Otimização", description: "", recurType: undefined as Task["recurType"], recurUntil: "", recurDaysInterval: undefined as Task["recurDaysInterval"] });
   };
 
   return (
@@ -104,10 +107,10 @@ export default function TrafficPage() {
             <label className="text-xs font-medium text-foreground block mb-1.5">Descrição</label>
             <textarea value={newTask.description} onChange={(e) => setNewTask(t => ({ ...t, description: e.target.value }))} placeholder="Descreva a tarefa..." rows={2} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none" />
           </div>
-          <div>
-            <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
-            <DatePicker value={newTask.recurUntil} onChange={(v) => setNewTask(t => ({ ...t, recurUntil: v }))} placeholder="Selecionar data" />
-          </div>
+          <RecurrencePicker
+            value={{ recurType: newTask.recurType, recurUntil: newTask.recurUntil, recurDaysInterval: newTask.recurDaysInterval }}
+            onChange={({ recurType, recurUntil, recurDaysInterval }) => setNewTask(t => ({ ...t, recurType, recurUntil, recurDaysInterval }))}
+          />
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
             <button onClick={handleCreate} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">Criar</button>

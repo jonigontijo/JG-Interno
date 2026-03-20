@@ -607,10 +607,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
       if (error) console.error('completeTask DB:', error);
     }
 
-    // === Recurrence: recreate task for next day if recurUntil is still in the future ===
-    if (task.recurUntil) {
-      const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
-      if (tomorrow <= task.recurUntil) {
+    // === Recurrence: recreate task based on frequency type ===
+    if (task.recurUntil && task.recurType) {
+      const calcNextDate = (from: Date): string => {
+        const rtype = task.recurType || "daily";
+        const d = new Date(from);
+        if (rtype === "daily") d.setDate(d.getDate() + 1);
+        else if (rtype === "weekly") d.setDate(d.getDate() + 7);
+        else if (rtype === "monthly") d.setMonth(d.getMonth() + 1);
+        else if (rtype === "yearly") d.setFullYear(d.getFullYear() + 1);
+        else if (rtype === "custom") d.setDate(d.getDate() + (task.recurDaysInterval || 1));
+        return d.toISOString().slice(0, 10);
+      };
+      const nextDate = calcNextDate(now);
+      if (nextDate <= task.recurUntil) {
         const recurTask: Task = {
           id: `t-${Date.now()}-recur`,
           title: task.title,
@@ -620,7 +630,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           sector: task.sector,
           type: task.type,
           assignee: task.assignee,
-          deadline: tomorrow,
+          deadline: nextDate,
           urgency: task.urgency,
           status: "backlog",
           weight: task.weight,
@@ -629,6 +639,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
           createdAt: now.toISOString().slice(0, 10),
           description: task.description,
           recurUntil: task.recurUntil,
+          recurType: task.recurType,
+          recurDaysInterval: task.recurDaysInterval,
         };
         set((s) => ({ tasks: [...s.tasks, recurTask] }));
         const mapped = mapTaskToDB(recurTask);

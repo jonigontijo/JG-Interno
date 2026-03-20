@@ -5,6 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import Modal from "@/components/Modal";
 import { DatePicker } from "@/components/ui/date-picker";
+import { RecurrencePicker } from "@/components/ui/recurrence-picker";
 import { toast } from "sonner";
 import { formatTime } from "@/data/mockData";
 import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat } from "lucide-react";
@@ -27,7 +28,7 @@ export default function TasksPage() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [showModal, setShowModal] = useState(false);
-  const [newTask, setNewTask] = useState({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], description: "", recurUntil: "" });
+  const [newTask, setNewTask] = useState({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], description: "", recurType: undefined as any, recurUntil: "", recurDaysInterval: undefined as any });
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
 
@@ -125,12 +126,14 @@ export default function TasksPage() {
       createdAt: new Date().toISOString().slice(0, 10),
       description: newTask.description || undefined,
       recurUntil: newTask.recurUntil || undefined,
+      recurType: newTask.recurType,
+      recurDaysInterval: newTask.recurDaysInterval,
     };
     addTask(task);
     logAudit(currentUser?.name || 'Desconhecido', 'Criou tarefa', task.title, task.id);
     toast.success("Tarefa criada!");
     setShowModal(false);
-    setNewTask({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal", description: "", recurUntil: "" });
+    setNewTask({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal", description: "", recurType: undefined as any, recurUntil: "", recurDaysInterval: undefined as any });
   };
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -421,10 +424,10 @@ export default function TasksPage() {
             <label className="text-xs font-medium text-foreground block mb-1.5">Descrição</label>
             <textarea value={newTask.description} onChange={(e) => setNewTask(t => ({ ...t, description: e.target.value }))} placeholder="Descreva a tarefa..." rows={2} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none" />
           </div>
-          <div>
-            <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
-            <DatePicker value={newTask.recurUntil} onChange={(v) => setNewTask(t => ({ ...t, recurUntil: v }))} placeholder="Selecionar data" />
-          </div>
+          <RecurrencePicker
+            value={{ recurType: newTask.recurType, recurUntil: newTask.recurUntil, recurDaysInterval: newTask.recurDaysInterval }}
+            onChange={({ recurType, recurUntil, recurDaysInterval }) => setNewTask(t => ({ ...t, recurType, recurUntil, recurDaysInterval }))}
+          />
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
             <button onClick={handleCreate} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">Criar Tarefa</button>
@@ -480,10 +483,10 @@ export default function TasksPage() {
               <label className="text-xs font-medium text-foreground block mb-1.5">Descrição</label>
               <textarea value={editTask.description || ""} onChange={(e) => setEditTask(t => t ? { ...t, description: e.target.value } : t)} rows={2} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none" />
             </div>
-            <div>
-              <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
-              <DatePicker value={editTask.recurUntil || ""} onChange={(v) => setEditTask(t => t ? { ...t, recurUntil: v || undefined } : t)} placeholder="Selecionar data" />
-            </div>
+            <RecurrencePicker
+              value={{ recurType: editTask.recurType, recurUntil: editTask.recurUntil, recurDaysInterval: editTask.recurDaysInterval }}
+              onChange={({ recurType, recurUntil, recurDaysInterval }) => setEditTask(t => t ? { ...t, recurType, recurUntil, recurDaysInterval } : t)}
+            />
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setEditTask(null)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
               <button onClick={() => {
@@ -492,6 +495,7 @@ export default function TasksPage() {
                   title: editTask.title, client: editTask.client, clientId: editTask.clientId,
                   module: editTask.module, urgency: editTask.urgency, assignee: editTask.assignee,
                   deadline: editTask.deadline, description: editTask.description, recurUntil: editTask.recurUntil,
+                  recurType: editTask.recurType, recurDaysInterval: editTask.recurDaysInterval,
                 });
                 logAudit(currentUser?.name || 'Desconhecido', 'Editou tarefa', editTask.title, editTask.id);
                 toast.success("Tarefa atualizada!");

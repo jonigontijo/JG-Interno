@@ -80,6 +80,8 @@ export interface Task {
   accumulatedMinutes?: number;
   description?: string;
   recurUntil?: string;
+  recurType?: "daily" | "weekly" | "monthly" | "yearly" | "custom";
+  recurDaysInterval?: number;
 }
 
 export interface Lead {
