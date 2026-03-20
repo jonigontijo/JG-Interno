@@ -197,6 +197,26 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }).eq('id', fnData.user.id);
     }
 
+    // Auto-add to team_members (payroll) - avoid duplicates
+    const { useAppStore } = await import('./useAppStore');
+    const appState = useAppStore.getState();
+    const alreadyInTeam = appState.team.some(m => m.name.toLowerCase() === user.name.toLowerCase());
+    if (!alreadyInTeam) {
+      appState.addTeamMember({
+        id: user.id || `u-${Date.now()}`,
+        name: user.name,
+        role: user.role,
+        roles: user.roles || [],
+        avatar: user.name.slice(0, 2).toUpperCase(),
+        currentLoad: 0,
+        capacity: 40,
+        tasksActive: 0,
+        specialty: user.roles || [],
+        salary: 0,
+        hireDate: user.hireDate || new Date().toISOString().slice(0, 10),
+      });
+    }
+
     toast.success(`Usuário ${user.name} criado com sucesso!`);
     await get().loadUsers();
     return true;
@@ -282,9 +302,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
     }
 
-    // Also delete from team_members table
-    db('team_members').delete().eq('id', id).then(({ error }: any) => {
-      if (error) console.error('Error deleting team member:', error);
+    // Auto-remove from team_members (payroll) by name match
+    import('./useAppStore').then(({ useAppStore }) => {
+      const appState = useAppStore.getState();
+      const teamMember = appState.team.find(m => m.name.toLowerCase() === user.name.toLowerCase() || m.id === id);
+      if (teamMember) {
+        appState.removeTeamMember(teamMember.id);
+      }
     });
   },
 

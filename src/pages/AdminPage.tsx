@@ -82,7 +82,7 @@ function getTenure(hireDate?: string): string {
 
 export default function AdminPage() {
   const { users, addUser, updateUser, removeUser, currentUser, registrationRequests, loadRegistrationRequests, approveRegistration, rejectRegistration } = useAuthStore();
-  const { addTeamMember, removeTeamMember, team, updateTeamMember } = useAppStore();
+  const { team, updateTeamMember } = useAppStore();
 
   useEffect(() => {
     loadRegistrationRequests();
@@ -97,12 +97,6 @@ export default function AdminPage() {
     if (!window.confirm(`Aprovar o acesso de "${req.name}" (${req.username})?`)) return;
     const ok = await approveRegistration(id);
     if (!ok) return;
-    const displayRole = req.desired_roles.join(', ');
-    addTeamMember({
-      id: `u-${Date.now()}`, name: req.name, role: displayRole, roles: req.desired_roles,
-      avatar: req.name.slice(0, 2).toUpperCase(), currentLoad: 0, capacity: 40, tasksActive: 0,
-      specialty: req.desired_roles, salary: 0,
-    });
     toast.success(`Acesso aprovado para ${req.name}!`);
   };
 
@@ -220,12 +214,6 @@ export default function AdminPage() {
         isAdmin: form.isAdmin, active: true, hireDate: form.hireDate,
         moduleAccess, recoveryEmail: form.recoveryEmail,
       });
-      addTeamMember({
-        id, name: form.name, role: displayRole, roles: form.roles,
-        avatar: form.name.slice(0, 2).toUpperCase(),
-        currentLoad: 0, capacity: 40, tasksActive: 0,
-        specialty: form.roles, salary: 0, hireDate: form.hireDate,
-      });
     }
     setShowModal(false);
   };
@@ -236,8 +224,6 @@ export default function AdminPage() {
       return;
     }
     removeUser(user.id);
-    const teamMember = team.find(m => m.name === user.name || m.id === user.id);
-    if (teamMember) removeTeamMember(teamMember.id);
     toast.success("Colaborador removido!");
   };
 
