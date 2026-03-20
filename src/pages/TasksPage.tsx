@@ -37,18 +37,21 @@ export default function TasksPage() {
     ? tasks
     : tasks.filter(t => t.assignee === currentUser?.name);
 
+  const isUrgent = (t: Task) => t.urgency === "urgent" || t.urgency === "critical" || t.status === "urgent" || t.status === "critical";
+  const terminalStatuses = ["done", "completed", "paused", "in_progress", "approval", "waiting_client"];
+
   const getColumnTasks = (colKey: string) => {
     switch (colKey) {
       case "urgent":
-        return myTasks.filter(t => (t.urgency === "urgent" || t.urgency === "critical") && t.status !== "done" && t.status !== "completed" && t.status !== "paused");
+        return myTasks.filter(t => isUrgent(t) && t.status !== "done" && t.status !== "completed" && t.status !== "paused");
       case "backlog":
-        return myTasks.filter(t => (t.status === "backlog" || t.status === "pending") && !(t.urgency === "urgent" || t.urgency === "critical") && t.status !== "paused");
+        return myTasks.filter(t => !isUrgent(t) && !terminalStatuses.includes(t.status));
       case "in_progress":
-        return myTasks.filter(t => t.status === "in_progress");
+        return myTasks.filter(t => t.status === "in_progress" && !isUrgent(t));
       case "paused":
         return myTasks.filter(t => t.status === "paused");
       case "approval":
-        return myTasks.filter(t => t.status === "approval" || t.status === "waiting_client");
+        return myTasks.filter(t => (t.status === "approval" || t.status === "waiting_client") && !isUrgent(t));
       case "done":
         return myTasks.filter(t => t.status === "done");
       case "completed":
