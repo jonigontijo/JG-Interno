@@ -70,7 +70,7 @@ interface AuthState {
   initialized: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  addUser: (user: AppUser & { password?: string }) => Promise<void>;
+  addUser: (user: AppUser & { password?: string }) => Promise<boolean>;
   updateUser: (id: string, data: Partial<AppUser> & { password?: string }) => void;
   removeUser: (id: string) => void;
   initAuth: () => Promise<void>;
@@ -178,15 +178,29 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const errMsg = fnData?.error || fnError?.message || 'Erro desconhecido';
       console.error('Error creating user:', errMsg);
       toast.error(`Erro ao criar usuário: ${errMsg}`);
-      return;
+      return false;
     }
 
     if (user.recoveryEmail && fnData?.user?.id) {
       await db('profiles').update({ recovery_email: user.recoveryEmail }).eq('id', fnData.user.id);
     }
 
+    // If user was reactivated, update profile data to match registration request
+    if (fnData?.reactivated && fnData?.user?.id) {
+      await db('profiles').update({
+        name: user.name,
+        role: user.role,
+        roles: user.roles,
+        is_admin: user.isAdmin,
+        active: true,
+        module_access: user.moduleAccess || DEFAULT_MODULES,
+        username: user.username.toLowerCase(),
+      }).eq('id', fnData.user.id);
+    }
+
     toast.success(`Usuário ${user.name} criado com sucesso!`);
     await get().loadUsers();
+    return true;
   },
 
   updateUser: (id, data) => {
@@ -310,8 +324,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const adminName = get().currentUser?.name || 'Admin';
     const displayRole = req.desired_roles.join(', ');
 
-    // Create the actual user via addUser
-    await get().addUser({
+    const success = await get().addUser({
       id: `u-${Date.now()}`,
       username: req.username,
       password: req.password_temp,
@@ -323,7 +336,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       moduleAccess: DEFAULT_MODULES,
     });
 
-    // Mark request as approved and clear temp password
+    if (!success) return;
+
     await db('registration_requests')
       .update({
         status: 'approved',
