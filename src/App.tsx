@@ -38,6 +38,7 @@ import SettingsPage from "./pages/SettingsPage";
 import QuoteRequestsPage from "./pages/QuoteRequestsPage";
 import RequestsPage from "./pages/RequestsPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -205,6 +206,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/approve/:token" element={<ClientApprovalPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/*" element={<AuthenticatedApp />} />
         </Routes>
       </BrowserRouter>

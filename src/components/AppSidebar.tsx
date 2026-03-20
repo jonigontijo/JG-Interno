@@ -7,7 +7,7 @@ import {
   Briefcase, Megaphone, Palette, Monitor, Phone, CheckCircle,
   Wrench, RefreshCw, Bot, BarChart3, Activity, TrendingUp,
   Shield, ClipboardList, ChevronDown, ChevronRight, Zap, Calendar,
-  Settings, Menu, X, LogOut, Send, HelpCircle, KeyRound, Eye, EyeOff
+  Settings, Menu, X, LogOut, Send, HelpCircle, KeyRound, Eye, EyeOff, Mail
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -97,10 +97,13 @@ export default function AppSidebar() {
   const requests = useAppStore((s) => s.requests);
   const currentUser = useAuthStore((s) => s.currentUser);
   const logout = useAuthStore((s) => s.logout);
+  const updateUser = useAuthStore((s) => s.updateUser);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pwForm, setPwForm] = useState({ current: "", newPw: "", confirm: "" });
   const [pwLoading, setPwLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState(currentUser?.recoveryEmail || "");
+  const [savingEmail, setSavingEmail] = useState(false);
 
   const handleChangePassword = async () => {
     if (!pwForm.newPw || pwForm.newPw.length < 6) { toast.error("Senha deve ter no mínimo 6 caracteres"); return; }
@@ -223,8 +226,32 @@ export default function AppSidebar() {
         </div>
       </div>
 
-      <Modal open={showPasswordModal} onClose={() => { setShowPasswordModal(false); setPwForm({ current: "", newPw: "", confirm: "" }); }} title="Alterar Senha">
-        <div className="space-y-4">
+      <Modal open={showPasswordModal} onClose={() => { setShowPasswordModal(false); setPwForm({ current: "", newPw: "", confirm: "" }); }} title="Minha Conta">
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Email de recuperação</h3>
+            <p className="text-[10px] text-muted-foreground -mt-1">Usado para redefinir sua senha caso esqueça</p>
+            <div className="flex gap-2">
+              <input type="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} placeholder="seu@email.com" className="flex-1 px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground" disabled={savingEmail} />
+              <button
+                onClick={async () => {
+                  if (!currentUser) return;
+                  setSavingEmail(true);
+                  try {
+                    updateUser(currentUser.id, { recoveryEmail });
+                    toast.success("Email de recuperação salvo!");
+                  } catch { toast.error("Erro ao salvar"); }
+                  finally { setSavingEmail(false); }
+                }}
+                disabled={savingEmail}
+                className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {savingEmail ? "..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+          <hr className="border-border" />
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5" /> Alterar senha</h3>
           <div>
             <label className="text-xs font-medium text-foreground block mb-1.5">Nova senha</label>
             <div className="relative">

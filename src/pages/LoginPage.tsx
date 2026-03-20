@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { LogIn, Loader2, Eye, EyeOff, ArrowLeft, UserPlus, CheckCircle } from "lucide-react";
+import { LogIn, Loader2, Eye, EyeOff, ArrowLeft, UserPlus, CheckCircle, Mail } from "lucide-react";
 import { toast } from "sonner";
 import logoJG from "@/assets/logo-jg.png";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const roleOptions = [
   "Gestor de Tráfego",
@@ -33,6 +35,10 @@ export default function LoginPage() {
   });
   const [regLoading, setRegLoading] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
+  const [resetUsername, setResetUsername] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetNoEmail, setResetNoEmail] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,28 +266,111 @@ export default function LoginPage() {
     );
   }
 
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetUsername.trim()) {
+      toast.error("Informe seu nome de usuário.");
+      return;
+    }
+    setResetLoading(true);
+    setResetNoEmail(false);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/request-password-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: resetUsername.trim().toLowerCase() }),
+      });
+      const data = await res.json();
+      if (data.no_email) {
+        setResetNoEmail(true);
+      } else {
+        setResetSent(true);
+      }
+    } catch {
+      toast.error("Erro de conexão. Tente novamente.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   if (view === "reset") {
+    if (resetSent) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <div className="w-full max-w-sm">
+            <Header />
+            <div className="rounded-lg border border-success/30 bg-card p-6 space-y-4">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-success/15 flex items-center justify-center">
+                  <Mail className="w-6 h-6 text-success" />
+                </div>
+                <h2 className="text-sm font-semibold text-foreground text-center">Email enviado!</h2>
+                <p className="text-xs text-muted-foreground text-center">
+                  Se o usuário <span className="font-mono font-medium text-foreground">{resetUsername}</span> possuir um email de recuperação cadastrado, um link de redefinição foi enviado.
+                </p>
+                <p className="text-xs text-muted-foreground text-center">
+                  Verifique sua caixa de entrada e spam.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setView("login"); setResetSent(false); setResetUsername(""); }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-primary/30 text-sm font-medium text-foreground hover:bg-primary/10 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Voltar ao login
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
           <Header />
-          <div className="rounded-lg border border-primary/20 bg-card p-6 space-y-4">
+          <form onSubmit={handleResetRequest} className="rounded-lg border border-primary/20 bg-card p-6 space-y-4">
             <h2 className="text-sm font-semibold text-foreground text-center mb-2">Recuperar senha</h2>
             <p className="text-xs text-muted-foreground text-center">
-              Para redefinir sua senha, entre em contato com a diretoria ou o administrador do sistema.
+              Informe seu nome de usuário. Enviaremos um link de redefinição para o email de recuperação cadastrado.
             </p>
-            <p className="text-xs text-muted-foreground text-center">
-              Informe seu nome de usuário e solicite a alteração.
-            </p>
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1.5">Usuário</label>
+              <input
+                type="text"
+                value={resetUsername}
+                onChange={(e) => { setResetUsername(e.target.value); setResetNoEmail(false); }}
+                placeholder="Seu nome de usuário"
+                className="w-full px-3 py-2 rounded-md border border-primary/20 bg-background text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary/40 focus:outline-none"
+                autoFocus
+                disabled={resetLoading}
+              />
+            </div>
+            {resetNoEmail && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                <p className="text-xs text-destructive">
+                  Este usuário não possui email de recuperação cadastrado. Entre em contato com o administrador.
+                </p>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={resetLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+              {resetLoading ? "Enviando..." : "Enviar link de redefinição"}
+            </button>
             <button
               type="button"
-              onClick={() => setView("login")}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-primary/30 text-sm font-medium text-foreground hover:bg-primary/10 transition-colors"
+              onClick={() => { setView("login"); setResetNoEmail(false); setResetUsername(""); }}
+              className="w-full flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
               Voltar ao login
             </button>
-          </div>
+          </form>
         </div>
       </div>
     );

@@ -13,6 +13,7 @@ export interface AppUser {
   active: boolean;
   hireDate?: string;
   moduleAccess?: string[];
+  recoveryEmail?: string;
 }
 
 export const ALL_MODULES = [
@@ -115,6 +116,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       active: p.active !== false,
       hireDate: p.hire_date,
       moduleAccess: p.module_access || DEFAULT_MODULES,
+      recoveryEmail: p.recovery_email || '',
     }));
 
     // Only show active users
@@ -179,6 +181,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return;
     }
 
+    if (user.recoveryEmail && fnData?.user?.id) {
+      await db('profiles').update({ recovery_email: user.recoveryEmail }).eq('id', fnData.user.id);
+    }
+
     toast.success(`Usuário ${user.name} criado com sucesso!`);
     await get().loadUsers();
   },
@@ -205,6 +211,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       };
       if (data.hireDate !== undefined) profileUpdate.hire_date = data.hireDate || null;
       if (data.username) profileUpdate.username = data.username.toLowerCase();
+      if (data.recoveryEmail !== undefined) profileUpdate.recovery_email = data.recoveryEmail || null;
 
       db('profiles').update(profileUpdate).eq('id', user.authId).then(({ error }: any) => {
         if (error) {
@@ -366,5 +373,6 @@ async function loadProfile(authId: string): Promise<AppUser | null> {
     isAdmin: data.is_admin || false,
     active: data.active !== false,
     moduleAccess: data.module_access || DEFAULT_MODULES,
+    recoveryEmail: data.recovery_email || '',
   };
 }

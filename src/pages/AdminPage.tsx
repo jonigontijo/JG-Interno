@@ -118,7 +118,7 @@ export default function AdminPage() {
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [expandedTab, setExpandedTab] = useState<"roles" | "modules">("modules");
   const [form, setForm] = useState({
-    name: "", username: "", password: "", roles: [] as string[], isAdmin: false, hireDate: "", moduleAccess: [] as string[],
+    name: "", username: "", password: "", roles: [] as string[], isAdmin: false, hireDate: "", moduleAccess: [] as string[], recoveryEmail: "",
   });
   const [isNewUser, setIsNewUser] = useState(false);
 
@@ -127,7 +127,7 @@ export default function AdminPage() {
   const handleOpenNew = () => {
     setEditingUser(null);
     setIsNewUser(true);
-    setForm({ name: "", username: "", password: "", roles: [], isAdmin: false, hireDate: "", moduleAccess: ["dashboard", "clients", "tasks", "requests", "ad-hoc"] });
+    setForm({ name: "", username: "", password: "", roles: [], isAdmin: false, hireDate: "", moduleAccess: ["dashboard", "clients", "tasks", "requests", "ad-hoc"], recoveryEmail: "" });
     setShowModal(true);
   };
 
@@ -139,6 +139,7 @@ export default function AdminPage() {
       roles: user.roles || [user.role],
       isAdmin: user.isAdmin, hireDate: user.hireDate || "",
       moduleAccess: user.moduleAccess || ["dashboard", "clients", "tasks", "requests", "ad-hoc"],
+      recoveryEmail: user.recoveryEmail || "",
     });
     setShowModal(true);
   };
@@ -203,7 +204,7 @@ export default function AdminPage() {
         name: form.name, username: form.username,
         ...(form.password ? { password: form.password } : {}),
         role: displayRole, roles: form.roles, isAdmin: form.isAdmin, hireDate: form.hireDate,
-        moduleAccess,
+        moduleAccess, recoveryEmail: form.recoveryEmail,
       });
       const teamMember = team.find(m => m.name === editingUser.name || m.id === editingUser.id);
       if (teamMember) {
@@ -216,7 +217,7 @@ export default function AdminPage() {
         id, username: form.username, password: form.password,
         name: form.name, role: displayRole, roles: form.roles,
         isAdmin: form.isAdmin, active: true, hireDate: form.hireDate,
-        moduleAccess,
+        moduleAccess, recoveryEmail: form.recoveryEmail,
       });
       addTeamMember({
         id, name: form.name, role: displayRole, roles: form.roles,
@@ -620,6 +621,11 @@ export default function AdminPage() {
               <label className="text-xs font-medium text-foreground block mb-1.5">{editingUser ? "Nova senha (deixe vazio para manter)" : "Senha *"}</label>
               <input type="text" value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))} placeholder={editingUser ? "Manter atual" : "Senha do colaborador"} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground" />
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1.5">Email de recuperação de senha</label>
+            <input type="email" value={form.recoveryEmail} onChange={(e) => setForm(f => ({ ...f, recoveryEmail: e.target.value }))} placeholder="email@exemplo.com" className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground" />
+            <p className="text-[10px] text-muted-foreground mt-1">Usado para o "Esqueci minha senha" na tela de login</p>
           </div>
           <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
             <input type="checkbox" id="admin-check" checked={form.isAdmin} onChange={(e) => setForm(f => ({ ...f, isAdmin: e.target.checked }))} className="rounded" />

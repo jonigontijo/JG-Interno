@@ -33,10 +33,29 @@ export default function TasksPage() {
   // Force re-render every 30s so elapsed time updates live
   useTimeTick(30000);
 
-  // Filter: admins see all, others see only their own tasks
+  // Map module_access keys → task module names for team visibility
+  const MODULE_TO_TASK_MODULE: Record<string, string[]> = {
+    "traffic": ["Tráfego"],
+    "social": ["Social Media"],
+    "production": ["Produção"],
+    "tech": ["Tech", "Suporte"],
+    "inside-sales": ["Inside Sales"],
+    "onboarding": ["Onboarding"],
+    "financial": ["Financeiro"],
+  };
+
+  // Admins see all; others see own tasks + tasks from modules they have access to
   const myTasks = currentUser?.isAdmin
     ? tasks
-    : tasks.filter(t => t.assignee === currentUser?.name);
+    : tasks.filter(t => {
+        if (t.assignee === currentUser?.name) return true;
+        const access = currentUser?.moduleAccess || [];
+        for (const mod of access) {
+          const taskModules = MODULE_TO_TASK_MODULE[mod];
+          if (taskModules && taskModules.includes(t.module)) return true;
+        }
+        return false;
+      });
 
   const isUrgent = (t: Task) => t.urgency === "urgent" || t.urgency === "critical" || t.status === "urgent" || t.status === "critical";
   const terminalStatuses = ["done", "completed", "paused", "in_progress", "approval", "waiting_client"];
