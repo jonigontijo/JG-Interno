@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { formatCurrency } from "@/data/mockData";
 import { toast } from "sonner";
 import { Shield, Users, Plus, Trash2, Eye, EyeOff, Edit2, Calendar, ChevronDown, ChevronUp, Lock, UserPlus, Check, X, Clock } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const roleOptions = [
   "Diretoria",
@@ -550,7 +551,7 @@ export default function AdminPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-foreground block mb-1.5">Data de entrada</label>
-            <input type="date" value={form.hireDate} onChange={(e) => setForm(f => ({ ...f, hireDate: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+            <DatePicker value={form.hireDate} onChange={(v) => setForm(f => ({ ...f, hireDate: v }))} placeholder="Selecionar data" />
           </div>
           <div>
             <label className="text-xs font-medium text-foreground block mb-1.5">Funções</label>

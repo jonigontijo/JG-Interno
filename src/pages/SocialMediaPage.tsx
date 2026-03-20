@@ -15,6 +15,7 @@ import OperationTaskList from "@/components/OperationTaskList";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -622,7 +623,7 @@ export default function SocialMediaPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
-            <input type="date" value={newTask.recurUntil} onChange={(e) => setNewTask(t => ({ ...t, recurUntil: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+            <DatePicker value={newTask.recurUntil} onChange={(v) => setNewTask(t => ({ ...t, recurUntil: v }))} placeholder="Selecionar data" />
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowTaskModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground">Cancelar</button>

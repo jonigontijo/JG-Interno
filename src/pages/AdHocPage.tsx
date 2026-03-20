@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Task } from "@/data/mockData";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export default function AdHocPage() {
   const { tasks, clients, addTask, deleteTask, startTask, completeTask, logAudit } = useAppStore();
@@ -149,7 +150,7 @@ export default function AdHocPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-foreground block mb-1.5">Prazo</label>
-            <input type="date" value={newDemand.deadline} onChange={(e) => setNewDemand(d => ({ ...d, deadline: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+            <DatePicker value={newDemand.deadline} onChange={(v) => setNewDemand(d => ({ ...d, deadline: v }))} placeholder="Selecionar prazo" />
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -498,7 +499,7 @@ export default function RequestsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Data *</Label>
-                <Input type="date" value={recordingForm.date} onChange={(e) => setRecordingForm(f => ({ ...f, date: e.target.value }))} />
+                <DatePicker value={recordingForm.date} onChange={(v) => setRecordingForm(f => ({ ...f, date: v }))} placeholder="Selecionar data" />
               </div>
               <div>
                 <Label>Horário</Label>

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -487,19 +488,11 @@ export default function FinancialPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label>Início</Label>
-                        <Input
-                          type="date"
-                          value={barterForm.startDate}
-                          onChange={(e) => setBarterForm(f => ({ ...f, startDate: e.target.value }))}
-                        />
+                        <DatePicker value={barterForm.startDate} onChange={(v) => setBarterForm(f => ({ ...f, startDate: v }))} placeholder="Data início" />
                       </div>
                       <div>
                         <Label>Fim</Label>
-                        <Input
-                          type="date"
-                          value={barterForm.endDate}
-                          onChange={(e) => setBarterForm(f => ({ ...f, endDate: e.target.value }))}
-                        />
+                        <DatePicker value={barterForm.endDate} onChange={(v) => setBarterForm(f => ({ ...f, endDate: v }))} placeholder="Data fim" />
                       </div>
                     </div>
                     <div>

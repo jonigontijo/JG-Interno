@@ -7,6 +7,7 @@ import Modal from "@/components/Modal";
 import { toast } from "sonner";
 import { Plus, Calendar, Edit2, Save, X } from "lucide-react";
 import type { Lead } from "@/data/mockData";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const stages = [
   { key: "meeting_scheduled", label: "Reunião Agendada" },
@@ -194,7 +195,7 @@ export default function ProspectionPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Data da reunião</label>
-              <input type="date" value={newLead.meetingDate} onChange={(e) => setNewLead(l => ({ ...l, meetingDate: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+              <DatePicker value={newLead.meetingDate} onChange={(v) => setNewLead(l => ({ ...l, meetingDate: v }))} placeholder="Data da reunião" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

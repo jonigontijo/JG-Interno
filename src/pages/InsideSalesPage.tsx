@@ -9,6 +9,7 @@ import { Plus, Play, Square, Clock } from "lucide-react";
 import { formatTime } from "@/data/mockData";
 import type { Task } from "@/data/mockData";
 import { useTimeTick } from "@/hooks/useTimeTick";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export default function InsideSalesPage() {
   const { tasks, clients, team, addTask, startTask, completeTask, logAudit } = useAppStore();
@@ -144,7 +145,7 @@ export default function InsideSalesPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Prazo *</label>
-              <input type="date" value={newTask.deadline} onChange={(e) => setNewTask(t => ({ ...t, deadline: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+              <DatePicker value={newTask.deadline} onChange={(v) => setNewTask(t => ({ ...t, deadline: v }))} placeholder="Selecionar prazo" />
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">

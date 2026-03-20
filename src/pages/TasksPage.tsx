@@ -4,6 +4,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import Modal from "@/components/Modal";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { formatTime } from "@/data/mockData";
 import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat } from "lucide-react";
@@ -413,7 +414,7 @@ export default function TasksPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Prazo *</label>
-              <input type="date" value={newTask.deadline} onChange={(e) => setNewTask(t => ({ ...t, deadline: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+              <DatePicker value={newTask.deadline} onChange={(v) => setNewTask(t => ({ ...t, deadline: v }))} placeholder="Selecionar prazo" />
             </div>
           </div>
           <div>
@@ -422,7 +423,7 @@ export default function TasksPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
-            <input type="date" value={newTask.recurUntil} onChange={(e) => setNewTask(t => ({ ...t, recurUntil: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+            <DatePicker value={newTask.recurUntil} onChange={(v) => setNewTask(t => ({ ...t, recurUntil: v }))} placeholder="Selecionar data" />
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
@@ -472,7 +473,7 @@ export default function TasksPage() {
               </div>
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Prazo</label>
-                <input type="date" value={editTask.deadline} onChange={(e) => setEditTask(t => t ? { ...t, deadline: e.target.value } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+                <DatePicker value={editTask.deadline} onChange={(v) => setEditTask(t => t ? { ...t, deadline: v } : t)} />
               </div>
             </div>
             <div>
@@ -481,7 +482,7 @@ export default function TasksPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
-              <input type="date" value={editTask.recurUntil || ""} onChange={(e) => setEditTask(t => t ? { ...t, recurUntil: e.target.value || undefined } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+              <DatePicker value={editTask.recurUntil || ""} onChange={(v) => setEditTask(t => t ? { ...t, recurUntil: v || undefined } : t)} placeholder="Selecionar data" />
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setEditTask(null)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
