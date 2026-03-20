@@ -23,9 +23,6 @@ export default function AuditPage() {
       .order('created_at', { ascending: false })
       .limit(200)
       .then(({ data, error }: any) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'df0f50'},body:JSON.stringify({sessionId:'df0f50',location:'AuditPage.tsx:loadLogs',message:'audit_logs query result',data:{count:data?.length,error:error?.message||null},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (error) {
           console.error('Error loading audit logs:', error);
         } else {

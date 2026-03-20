@@ -607,6 +607,37 @@ export const useAppStore = create<AppState>()((set, get) => ({
       if (error) console.error('completeTask DB:', error);
     }
 
+    // === Recurrence: recreate task for next day if recurUntil is still in the future ===
+    if (task.recurUntil) {
+      const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+      if (tomorrow <= task.recurUntil) {
+        const recurTask: Task = {
+          id: `t-${Date.now()}-recur`,
+          title: task.title,
+          client: task.client,
+          clientId: task.clientId,
+          module: task.module,
+          sector: task.sector,
+          type: task.type,
+          assignee: task.assignee,
+          deadline: tomorrow,
+          urgency: task.urgency,
+          status: "backlog",
+          weight: task.weight,
+          estimatedHours: task.estimatedHours,
+          hasRework: false,
+          createdAt: now.toISOString().slice(0, 10),
+          description: task.description,
+          recurUntil: task.recurUntil,
+        };
+        set((s) => ({ tasks: [...s.tasks, recurTask] }));
+        const mapped = mapTaskToDB(recurTask);
+        db('tasks').upsert(mapped).then(({ error: e }: any) => {
+          if (e) console.error('Recurrence task DB write failed:', e);
+        });
+      }
+    }
+
     // === Pipeline advancement ===
     if (task.type === "pipeline" && task.clientId) {
       const pipeline = get().clientPipelines.find(p => p.clientId === task.clientId);
@@ -965,16 +996,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   logAudit: (userName, action, entity, entityId) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'df0f50'},body:JSON.stringify({sessionId:'df0f50',location:'useAppStore.ts:logAudit',message:'logAudit called',data:{userName,action,entity,entityId},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     db('audit_logs').insert({ user_name: userName, action, entity, entity_id: entityId || null }).then(({ error }: any) => {
-      if (error) {
-        console.error('Audit log write failed:', error);
-        // #region agent log
-        fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'df0f50'},body:JSON.stringify({sessionId:'df0f50',location:'useAppStore.ts:logAudit:error',message:'audit insert error',data:{error:error.message||error},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-      }
+      if (error) console.error('Audit log write failed:', error);
     });
   },
 

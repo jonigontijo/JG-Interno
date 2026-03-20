@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import Modal from "@/components/Modal";
 import { toast } from "sonner";
 import { formatTime } from "@/data/mockData";
-import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2 } from "lucide-react";
+import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat } from "lucide-react";
 import { useTimeTick } from "@/hooks/useTimeTick";
 import type { Task } from "@/data/mockData";
 
@@ -28,6 +28,7 @@ export default function TasksPage() {
   const [showModal, setShowModal] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], description: "", recurUntil: "" });
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [editTask, setEditTask] = useState<Task | null>(null);
 
   // Force re-render every 30s so elapsed time updates live
   useTimeTick(30000);
@@ -299,7 +300,10 @@ export default function TasksPage() {
                 const elapsed = getElapsedTime(task);
                 return (
                   <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                    <td className="py-3 px-4 text-sm text-foreground">{task.title}</td>
+                    <td className="py-3 px-4 text-sm text-foreground">
+                      <span>{task.title}</span>
+                      {task.recurUntil && <Repeat size={10} className="inline ml-1.5 text-primary opacity-60" title={`Recorrente até ${task.recurUntil}`} />}
+                    </td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{task.client}</td>
                     <td className="py-3 px-4"><span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{task.module}</span></td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{task.assignee}</td>
@@ -321,11 +325,15 @@ export default function TasksPage() {
                           </>
                         )}
                         <button
+                          onClick={() => setEditTask({ ...task })}
+                          className="text-[9px] px-2 py-1 rounded bg-muted text-muted-foreground hover:bg-muted/80 ml-1"
+                          title="Editar tarefa"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
                           onClick={() => {
                             if (confirm(`Apagar tarefa "${task.title}"?`)) {
-                              // #region agent log
-                              fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'df0f50'},body:JSON.stringify({sessionId:'df0f50',location:'TasksPage.tsx:deleteClick',message:'delete task clicked',data:{taskId:task.id,taskTitle:task.title,user:currentUser?.name},timestamp:Date.now()})}).catch(()=>{});
-                              // #endregion
                               deleteTask(task.id);
                               logAudit(currentUser?.name || 'Desconhecido', 'Apagou tarefa', task.title, task.id);
                               toast.success("Tarefa apagada!");
@@ -403,6 +411,76 @@ export default function TasksPage() {
           </div>
         </div>
       </Modal>
+
+      {editTask && (
+        <Modal open={!!editTask} onClose={() => setEditTask(null)} title="Editar Tarefa">
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1.5">Título *</label>
+              <input type="text" value={editTask.title} onChange={(e) => setEditTask(t => t ? { ...t, title: e.target.value } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1.5">Cliente</label>
+              <select value={editTask.clientId} onChange={(e) => { const c = clients.find(cl => cl.id === e.target.value); setEditTask(t => t ? { ...t, clientId: e.target.value, client: c?.company || t.client } : t); }} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground">
+                <option value="">Selecione...</option>
+                {[...clients].sort((a, b) => a.company.localeCompare(b.company)).map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Módulo</label>
+                <select value={editTask.module} onChange={(e) => setEditTask(t => t ? { ...t, module: e.target.value } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground">
+                  {["Tráfego", "Social Media", "Produção", "Tech", "Inside Sales", "Administrativo"].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Urgência</label>
+                <select value={editTask.urgency} onChange={(e) => setEditTask(t => t ? { ...t, urgency: e.target.value as Task["urgency"] } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground">
+                  <option value="normal">Normal</option>
+                  <option value="priority">Prioridade</option>
+                  <option value="urgent">Urgente</option>
+                  <option value="critical">Crítico</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Responsável</label>
+                <select value={editTask.assignee} onChange={(e) => setEditTask(t => t ? { ...t, assignee: e.target.value } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground">
+                  <option value="">Selecione...</option>
+                  {allUsers.filter(u => u.active).map(u => <option key={u.id} value={u.name}>{u.name}{u.role ? ` (${u.role})` : ""}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5">Prazo</label>
+                <input type="date" value={editTask.deadline} onChange={(e) => setEditTask(t => t ? { ...t, deadline: e.target.value } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1.5">Descrição</label>
+              <textarea value={editTask.description || ""} onChange={(e) => setEditTask(t => t ? { ...t, description: e.target.value } : t)} rows={2} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1.5">Recorrência até</label>
+              <input type="date" value={editTask.recurUntil || ""} onChange={(e) => setEditTask(t => t ? { ...t, recurUntil: e.target.value || undefined } : t)} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setEditTask(null)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
+              <button onClick={() => {
+                if (!editTask.title) { toast.error("Título é obrigatório"); return; }
+                updateTask(editTask.id, {
+                  title: editTask.title, client: editTask.client, clientId: editTask.clientId,
+                  module: editTask.module, urgency: editTask.urgency, assignee: editTask.assignee,
+                  deadline: editTask.deadline, description: editTask.description, recurUntil: editTask.recurUntil,
+                });
+                logAudit(currentUser?.name || 'Desconhecido', 'Editou tarefa', editTask.title, editTask.id);
+                toast.success("Tarefa atualizada!");
+                setEditTask(null);
+              }} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">Salvar</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

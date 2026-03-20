@@ -7,8 +7,11 @@ import {
   Briefcase, Megaphone, Palette, Monitor, Phone, CheckCircle,
   Wrench, RefreshCw, Bot, BarChart3, Activity, TrendingUp,
   Shield, ClipboardList, ChevronDown, ChevronRight, Zap, Calendar,
-  Settings, Menu, X, LogOut, Send, HelpCircle
+  Settings, Menu, X, LogOut, Send, HelpCircle, KeyRound, Eye, EyeOff
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import Modal from "@/components/Modal";
 import logoJG from "@/assets/logo-jg.png";
 
 interface NavItem {
@@ -94,6 +97,27 @@ export default function AppSidebar() {
   const requests = useAppStore((s) => s.requests);
   const currentUser = useAuthStore((s) => s.currentUser);
   const logout = useAuthStore((s) => s.logout);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", newPw: "", confirm: "" });
+  const [pwLoading, setPwLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!pwForm.newPw || pwForm.newPw.length < 6) { toast.error("Senha deve ter no mínimo 6 caracteres"); return; }
+    if (pwForm.newPw !== pwForm.confirm) { toast.error("As senhas não coincidem"); return; }
+    setPwLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pwForm.newPw });
+      if (error) { toast.error("Erro ao alterar senha: " + error.message); return; }
+      toast.success("Senha alterada com sucesso!");
+      setShowPasswordModal(false);
+      setPwForm({ current: "", newPw: "", confirm: "" });
+    } catch (err: any) {
+      toast.error("Erro inesperado: " + err.message);
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   const myPendingRequests = requests.filter(
     (r) => r.assignedToName === currentUser?.name && r.status === "pending"
@@ -190,11 +214,36 @@ export default function AppSidebar() {
             <p className="text-xs font-medium text-foreground truncate">{currentUser?.name || "Admin"}</p>
             <p className="text-[10px] text-muted-foreground">{currentUser?.role || "Diretoria"}</p>
           </div>
+          <button onClick={() => setShowPasswordModal(true)} className="p-1 rounded hover:bg-muted transition-colors" title="Alterar senha">
+            <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
           <button onClick={logout} className="p-1 rounded hover:bg-muted transition-colors" title="Sair">
             <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
         </div>
       </div>
+
+      <Modal open={showPasswordModal} onClose={() => { setShowPasswordModal(false); setPwForm({ current: "", newPw: "", confirm: "" }); }} title="Alterar Senha">
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1.5">Nova senha</label>
+            <div className="relative">
+              <input type={showPw ? "text" : "password"} value={pwForm.newPw} onChange={(e) => setPwForm(f => ({ ...f, newPw: e.target.value }))} placeholder="Mínimo 6 caracteres" className="w-full px-3 py-2 pr-9 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground" disabled={pwLoading} />
+              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
+                {showPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1.5">Confirmar nova senha</label>
+            <input type={showPw ? "text" : "password"} value={pwForm.confirm} onChange={(e) => setPwForm(f => ({ ...f, confirm: e.target.value }))} placeholder="Repita a nova senha" className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground" disabled={pwLoading} />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => { setShowPasswordModal(false); setPwForm({ current: "", newPw: "", confirm: "" }); }} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
+            <button onClick={handleChangePassword} disabled={pwLoading} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">{pwLoading ? "Salvando..." : "Alterar Senha"}</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 
