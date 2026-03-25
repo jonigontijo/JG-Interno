@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useAppStore, QuoteRequest } from "@/store/useAppStore";
+import { useAppStore, QuoteRequest, type ClientDnaLink, type ClientDnaCredential, type ClientDnaDate } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { formatCurrency, RecurringService } from "@/data/mockData";
 import PageHeader from "@/components/PageHeader";
@@ -10,7 +10,8 @@ import { toast } from "sonner";
 import {
   ArrowLeft, FileText, DollarSign, CheckCircle, Clock,
   Plus, Send, CreditCard, AlertTriangle, Briefcase, Trash2, Edit2, X,
-  Users, Play, Square, RefreshCw, Zap, Star, Shield
+  Users, Play, Square, RefreshCw, Zap, Star, Shield,
+  Link, Paperclip, Key, CalendarDays, MessageSquare, Eye, EyeOff
 } from "lucide-react";
 
 const availableServices = [
@@ -52,10 +53,21 @@ const frequencyColors: Record<string, string> = {
 
 const tabs = [
   { key: "overview", label: "Visão Geral", icon: Briefcase },
+  { key: "dna", label: "DNA do Cliente", icon: Zap },
   { key: "team", label: "Equipe", icon: Users },
   { key: "tasks", label: "Tarefas", icon: CheckCircle },
   { key: "quotes", label: "Orçamentos", icon: FileText },
   { key: "financial", label: "Financeiro", icon: DollarSign },
+];
+
+const NOTE_AREAS = [
+  { key: "gestor_trafego", label: "Gestor de Tráfego" },
+  { key: "gestor_social", label: "Social Media" },
+  { key: "designer", label: "Designer" },
+  { key: "videomaker", label: "Videomaker" },
+  { key: "inside_sales", label: "Inside Sales" },
+  { key: "coordenacao", label: "Coordenação" },
+  { key: "geral", label: "Observações Gerais" },
 ];
 
 export default function ClientDetailPage() {
@@ -68,12 +80,19 @@ export default function ClientDetailPage() {
     assignTeamMemberToClient, removeTeamMemberFromClient,
     addRecurringService, removeRecurringService, updateRecurringService,
     generateRecurringTasks, startTask, completeTask, addTask, deleteTask, logAudit,
+    getClientDna, updateClientDna,
   } = useAppStore();
   const { users } = useAuthStore();
   const currentUser = useAuthStore((s) => s.currentUser);
 
   const client = clients.find((c) => c.id === id);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // DNA state
+  const [dnaNewLink, setDnaNewLink] = useState({ label: "", url: "" });
+  const [dnaNewCred, setDnaNewCred] = useState({ label: "", value: "" });
+  const [dnaNewDate, setDnaNewDate] = useState({ label: "", date: "" });
+  const [dnaShowPasswords, setDnaShowPasswords] = useState<Record<number, boolean>>({});
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [showEditValueModal, setShowEditValueModal] = useState(false);
@@ -518,6 +537,114 @@ export default function ClientDetailPage() {
           </div>
         </div>
       )}
+
+      {/* DNA Tab */}
+      {activeTab === "dna" && (() => {
+        const dna = getClientDna(client.id);
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Links / Documentos */}
+            <div className="rounded-lg border bg-card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Paperclip className="w-4 h-4 text-primary" /> Links / Documentos</h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Formulários, identidade visual, Google Drive, briefings, etc.</p>
+              <div className="space-y-2">
+                {dna.links.map((link, i) => (
+                  <div key={i} className="flex items-center gap-2 group">
+                    <a href={link.url.startsWith("http") ? link.url : `https://${link.url}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors overflow-hidden min-w-0">
+                      <Link className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="font-medium flex-shrink-0">{link.label}:</span>
+                      <span className="truncate min-w-0 text-primary/70">{link.url}</span>
+                    </a>
+                    <button onClick={() => { const newLinks = dna.links.filter((_, idx) => idx !== i); updateClientDna(client.id, { links: newLinks }); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 rounded p-1 transition-all"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input value={dnaNewLink.label} onChange={(e) => setDnaNewLink(f => ({ ...f, label: e.target.value }))} placeholder="Nome (ex: Formulário)" className="w-32 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground placeholder:text-muted-foreground" />
+                <input value={dnaNewLink.url} onChange={(e) => setDnaNewLink(f => ({ ...f, url: e.target.value }))} placeholder="URL do link" className="flex-1 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground placeholder:text-muted-foreground" onKeyDown={(e) => { if (e.key === "Enter" && dnaNewLink.label && dnaNewLink.url) { updateClientDna(client.id, { links: [...dna.links, { ...dnaNewLink }] }); setDnaNewLink({ label: "", url: "" }); } }} />
+                <button onClick={() => { if (dnaNewLink.label && dnaNewLink.url) { updateClientDna(client.id, { links: [...dna.links, { ...dnaNewLink }] }); setDnaNewLink({ label: "", url: "" }); } }} disabled={!dnaNewLink.label || !dnaNewLink.url} className="px-2 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+
+            {/* Credenciais */}
+            <div className="rounded-lg border bg-card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Key className="w-4 h-4 text-warning" /> Credenciais / Acessos</h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Login Instagram, senhas de plataformas, acessos BM, etc.</p>
+              <div className="space-y-2">
+                {dna.credentials.map((cred, i) => (
+                  <div key={i} className="flex items-center gap-2 group">
+                    <div className="flex-1 flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-warning/5 border border-warning/20 min-w-0">
+                      <Key className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                      <span className="font-medium text-foreground flex-shrink-0">{cred.label}:</span>
+                      <span className="truncate min-w-0 text-muted-foreground font-mono text-xs">{dnaShowPasswords[i] ? cred.value : "••••••••"}</span>
+                      <button onClick={() => setDnaShowPasswords(p => ({ ...p, [i]: !p[i] }))} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                        {dnaShowPasswords[i] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                    </div>
+                    <button onClick={() => { const newCreds = dna.credentials.filter((_, idx) => idx !== i); updateClientDna(client.id, { credentials: newCreds }); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 rounded p-1 transition-all"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input value={dnaNewCred.label} onChange={(e) => setDnaNewCred(f => ({ ...f, label: e.target.value }))} placeholder="Nome (ex: Instagram)" className="w-32 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground placeholder:text-muted-foreground" />
+                <input value={dnaNewCred.value} onChange={(e) => setDnaNewCred(f => ({ ...f, value: e.target.value }))} placeholder="Login / Senha / Valor" className="flex-1 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground placeholder:text-muted-foreground" onKeyDown={(e) => { if (e.key === "Enter" && dnaNewCred.label && dnaNewCred.value) { updateClientDna(client.id, { credentials: [...dna.credentials, { ...dnaNewCred }] }); setDnaNewCred({ label: "", value: "" }); } }} />
+                <button onClick={() => { if (dnaNewCred.label && dnaNewCred.value) { updateClientDna(client.id, { credentials: [...dna.credentials, { ...dnaNewCred }] }); setDnaNewCred({ label: "", value: "" }); } }} disabled={!dnaNewCred.label || !dnaNewCred.value} className="px-2 py-1.5 rounded-md bg-warning text-warning-foreground text-xs font-medium hover:bg-warning/90 disabled:opacity-50 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+
+            {/* Datas Importantes */}
+            <div className="rounded-lg border bg-card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><CalendarDays className="w-4 h-4 text-success" /> Datas Importantes</h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Aniversários, datas de renovação, eventos, etc.</p>
+              <div className="space-y-2">
+                {dna.importantDates.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2 group">
+                    <div className="flex-1 flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-success/5 border border-success/20">
+                      <CalendarDays className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                      <span className="font-medium text-foreground">{d.label}:</span>
+                      <span className="text-muted-foreground">{new Date(d.date + "T12:00:00").toLocaleDateString("pt-BR")}</span>
+                    </div>
+                    <button onClick={() => { const newDates = dna.importantDates.filter((_, idx) => idx !== i); updateClientDna(client.id, { importantDates: newDates }); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 rounded p-1 transition-all"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input value={dnaNewDate.label} onChange={(e) => setDnaNewDate(f => ({ ...f, label: e.target.value }))} placeholder="Nome (ex: Aniversário)" className="w-40 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground placeholder:text-muted-foreground" />
+                <input type="date" value={dnaNewDate.date} onChange={(e) => setDnaNewDate(f => ({ ...f, date: e.target.value }))} className="flex-1 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground" />
+                <button onClick={() => { if (dnaNewDate.label && dnaNewDate.date) { updateClientDna(client.id, { importantDates: [...dna.importantDates, { ...dnaNewDate }] }); setDnaNewDate({ label: "", date: "" }); } }} disabled={!dnaNewDate.label || !dnaNewDate.date} className="px-2 py-1.5 rounded-md bg-success text-success-foreground text-xs font-medium hover:bg-success/90 disabled:opacity-50 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+
+            {/* Observações por Área */}
+            <div className="rounded-lg border bg-card p-5 space-y-4 lg:col-span-2">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><MessageSquare className="w-4 h-4 text-primary" /> Observações por Área</h3>
+              <p className="text-[10px] text-muted-foreground">Notas dos gestores, designers, videomakers, etc. sobre este cliente</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {NOTE_AREAS.map(area => (
+                  <div key={area.key} className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground">{area.label}</label>
+                    <textarea
+                      value={dna.notes[area.key] || ""}
+                      onChange={(e) => {
+                        updateClientDna(client.id, { notes: { ...dna.notes, [area.key]: e.target.value } });
+                      }}
+                      placeholder={`Observações do ${area.label}...`}
+                      rows={3}
+                      className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Team Tab */}
       {activeTab === "team" && (

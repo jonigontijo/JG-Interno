@@ -271,17 +271,18 @@ export async function loadAllData() {
     db('settings').select('*'),
     db('productivity').select('*'),
     db('profiles').select('name, active'),
+    db('client_dna').select('*'),
   ]);
 
   const [teamRes, clientsRes, tasksRes, leadsRes, assignmentsRes, servicesRes,
-    quotesRes, requestsRes, pipelinesRes, onboardingRes, settingsRes, prodRes, profilesRes] = results;
+    quotesRes, requestsRes, pipelinesRes, onboardingRes, settingsRes, prodRes, profilesRes, dnaRes] = results;
 
   // Check for critical errors (connection failures etc.)
   const errors = results.filter(r => r.error);
   if (errors.length > 0) {
     console.error('DB load errors:', errors.map(e => e.error));
     if (errors.length > 6) {
-      throw new Error(`Falha ao conectar ao banco de dados (${errors.length}/13 queries falharam)`);
+      throw new Error(`Falha ao conectar ao banco de dados (${errors.length}/14 queries falharam)`);
     }
   }
 
@@ -312,6 +313,13 @@ export async function loadAllData() {
     })),
     settings: (settingsRes.data || []).map(mapSettingFromDB),
     productivity: (prodRes.data || []).map(mapProductivityFromDB),
+    clientDna: (dnaRes.data || []).map((row: any) => ({
+      clientId: row.client_id,
+      links: row.links || [],
+      notes: row.notes || {},
+      credentials: row.credentials || [],
+      importantDates: row.important_dates || [],
+    })),
     _dbConnected: true,
   };
 }

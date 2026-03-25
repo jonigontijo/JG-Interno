@@ -70,6 +70,17 @@ export interface OnboardingData {
   accessData: Record<string, string>;
 }
 
+export interface ClientDnaLink { label: string; url: string; }
+export interface ClientDnaCredential { label: string; value: string; }
+export interface ClientDnaDate { label: string; date: string; }
+export interface ClientDna {
+  clientId: string;
+  links: ClientDnaLink[];
+  notes: Record<string, string>;
+  credentials: ClientDnaCredential[];
+  importantDates: ClientDnaDate[];
+}
+
 export interface ClientPipelineState {
   clientId: string;
   currentStepOrder: number;
@@ -85,6 +96,7 @@ export interface AppState {
   team: TeamMember[];
   quoteRequests: QuoteRequest[];
   onboardingData: OnboardingData[];
+  clientDna: ClientDna[];
   clientPipelines: ClientPipelineState[];
   requests: InternalRequest[];
   productivity: ProductivityRecord[];
@@ -155,6 +167,10 @@ export interface AppState {
   updateOnboardingAccess: (clientId: string, key: string, value: string) => void;
   getOnboardingData: (clientId: string) => OnboardingData;
 
+  // Client DNA actions
+  getClientDna: (clientId: string) => ClientDna;
+  updateClientDna: (clientId: string, data: Partial<Omit<ClientDna, "clientId">>) => void;
+
   // Audit
   logAudit: (userName: string, action: string, entity: string, entityId?: string) => void;
 
@@ -182,6 +198,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   team: [],
   quoteRequests: [],
   onboardingData: [],
+  clientDna: [],
   clientPipelines: [],
   requests: [],
   productivity: [],
@@ -226,6 +243,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         requests: data.requests,
         clientPipelines: data.clientPipelines,
         onboardingData: data.onboardingData,
+        clientDna: data.clientDna || [],
         settings: data.settings.length > 0 ? data.settings : DEFAULT_SETTINGS,
         productivity: data.productivity,
       });
@@ -1066,6 +1084,32 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   getOnboardingData: (clientId) => {
     return get().onboardingData.find((o) => o.clientId === clientId) || { clientId, checklist: {}, accessData: {} };
+  },
+
+  getClientDna: (clientId) => {
+    return get().clientDna.find((d) => d.clientId === clientId) || { clientId, links: [], notes: {}, credentials: [], importantDates: [] };
+  },
+
+  updateClientDna: (clientId, data) => {
+    set((s) => {
+      const existing = s.clientDna.find((d) => d.clientId === clientId);
+      if (existing) {
+        return { clientDna: s.clientDna.map((d) => d.clientId === clientId ? { ...d, ...data } : d) };
+      }
+      return { clientDna: [...s.clientDna, { clientId, links: [], notes: {}, credentials: [], importantDates: [], ...data }] };
+    });
+    const dna = get().clientDna.find(d => d.clientId === clientId);
+    if (dna) {
+      db('client_dna').upsert({
+        client_id: clientId,
+        links: dna.links,
+        notes: dna.notes,
+        credentials: dna.credentials,
+        important_dates: dna.importantDates,
+      }).then(({ error }: any) => {
+        if (error) console.error('Error saving client DNA:', error);
+      });
+    }
   },
 
   getNotifications: () => {
