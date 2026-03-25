@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, Users, ArrowRight, Trash2, Film, Paperclip, Link, X } from "lucide-react";
+import { Plus, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, Users, ArrowRight, Trash2, Film, Paperclip, Link, X, Pencil, Eye } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useAppStore, type InternalRequest } from "@/store/useAppStore";
 import { toast } from "sonner";
@@ -50,6 +50,12 @@ export default function RequestsPage() {
     clientId: "", date: "", time: "", videomaker: "", notes: "", roteiro: "", roteiroSent: false,
   });
   const [filter, setFilter] = useState<"all" | "mine" | "sent">("all");
+  const [viewingRequest, setViewingRequest] = useState<InternalRequest | null>(null);
+  const [editingRequest, setEditingRequest] = useState<InternalRequest | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "", description: "", assignedTo: "", department: "", priority: "normal" as InternalRequest["priority"],
+    dueDate: "", attachments: [] as string[], newAttachment: "",
+  });
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -99,7 +105,7 @@ export default function RequestsPage() {
       priority: formData.priority,
       status: "pending",
       createdAt: new Date().toISOString(),
-      dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+      dueDate: formData.dueDate || undefined,
       attachments: formData.attachments.length > 0 ? formData.attachments : undefined,
     };
 
@@ -320,7 +326,7 @@ export default function RequestsPage() {
                 </div>
                 <div>
                   <Label>Prazo</Label>
-                  <Input type="datetime-local" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} />
+                  <DatePicker value={formData.dueDate} onChange={(v) => setFormData({ ...formData, dueDate: v })} placeholder="Selecionar prazo" />
                 </div>
               </div>
               <div>
@@ -416,8 +422,14 @@ export default function RequestsPage() {
           const isAssignedToMe = request.assignedToName === currentUser?.name;
           const isCoordinator = currentUser?.roles?.some((r) => r.includes("Coordenação")) || currentUser?.isAdmin;
 
+          const canEdit = (request.requesterName === currentUser?.name || currentUser?.isAdmin) && request.status !== "completed";
+
           return (
-            <div key={request.id} className={`rounded-lg border bg-card p-5 transition-colors ${request.status === "pending" && isAssignedToMe ? "border-warning/40 bg-warning/5" : "hover:border-primary/30"}`}>
+            <div
+              key={request.id}
+              className={`rounded-lg border bg-card p-5 transition-colors cursor-pointer ${request.status === "pending" && isAssignedToMe ? "border-warning/40 bg-warning/5" : "hover:border-primary/30"}`}
+              onClick={() => setViewingRequest(request)}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -430,7 +442,6 @@ export default function RequestsPage() {
                       <Badge variant="destructive" className="text-[10px] animate-pulse">Nova!</Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{request.description}</p>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                     <span>De: <strong>{request.requesterName}</strong></span>
                     <span>Para: <strong>{request.assignedToName}</strong></span>
@@ -449,7 +460,7 @@ export default function RequestsPage() {
                   {request.attachments && request.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {request.attachments.map((link, i) => (
-                        <a key={i} href={link.startsWith("http") ? link : `https://${link}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors max-w-[300px]">
+                        <a key={i} href={link.startsWith("http") ? link : `https://${link}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors max-w-[300px]">
                           <Link className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{link}</span>
                         </a>
@@ -457,9 +468,8 @@ export default function RequestsPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Delete - only requester or admin */}
-                  {(request.requesterName === currentUser?.name || currentUser?.isAdmin) && request.status !== "completed" && (
+                <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {canEdit && (
                     <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => {
                       deleteRequest(request.id);
                       toast.success("Requisição excluída");
@@ -467,8 +477,23 @@ export default function RequestsPage() {
                       <Trash2 className="w-3 h-3 mr-1" /> Excluir
                     </Button>
                   )}
-                  {/* Coordinator can redistribute */}
-                  {/* Redistribute - coordinator on pending, or assignee on in_progress */}
+                  {canEdit && (
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => {
+                      setEditingRequest(request);
+                      setEditForm({
+                        title: request.title,
+                        description: request.description || "",
+                        assignedTo: request.assignedToName,
+                        department: request.department,
+                        priority: request.priority,
+                        dueDate: request.dueDate ? request.dueDate.slice(0, 10) : "",
+                        attachments: request.attachments || [],
+                        newAttachment: "",
+                      });
+                    }}>
+                      <Pencil className="w-3 h-3 mr-1" /> Editar
+                    </Button>
+                  )}
                   {((isCoordinator && request.status === "pending") || (isAssignedToMe && (request.status === "pending" || request.status === "in_progress"))) && (
                     <Button variant="outline" size="sm" className="text-xs" onClick={() => { setRedistributeDialog(request.id); setRedistributeTo(""); }}>
                       <Users className="w-3 h-3 mr-1" /> Redistribuir
@@ -655,6 +680,232 @@ export default function RequestsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail View Modal */}
+      <Dialog open={!!viewingRequest} onOpenChange={(open) => !open && setViewingRequest(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {viewingRequest && getStatusIcon(viewingRequest.status)}
+              {viewingRequest?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {viewingRequest && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium ${getPriorityClasses(viewingRequest.priority)}`}>
+                  {priorityLabels[viewingRequest.priority]}
+                </span>
+                <span className="text-[10px] px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
+                  {statusLabels[viewingRequest.status] || viewingRequest.status}
+                </span>
+                <span className="text-[10px] px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
+                  {departmentLabels[viewingRequest.department] || viewingRequest.department}
+                </span>
+              </div>
+
+              {viewingRequest.description && (
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-1">Descrição</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3">{viewingRequest.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Solicitante</p>
+                  <p className="font-medium">{viewingRequest.requesterName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Atribuído para</p>
+                  <p className="font-medium">{viewingRequest.assignedToName}</p>
+                </div>
+                {viewingRequest.clientName && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cliente</p>
+                    <p className="font-medium text-primary">{viewingRequest.clientName}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Criada em</p>
+                  <p className="font-medium">{new Date(viewingRequest.createdAt).toLocaleDateString("pt-BR")} {new Date(viewingRequest.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                </div>
+                {viewingRequest.dueDate && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Prazo</p>
+                    <p className="font-medium">{new Date(viewingRequest.dueDate).toLocaleDateString("pt-BR")}</p>
+                  </div>
+                )}
+                {viewingRequest.redistributedBy && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Redistribuída por</p>
+                    <p className="font-medium text-primary">{viewingRequest.redistributedBy}</p>
+                  </div>
+                )}
+              </div>
+
+              {viewingRequest.attachments && viewingRequest.attachments.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5"><Paperclip className="w-3.5 h-3.5" /> Links / Documentos</p>
+                  <div className="space-y-1.5">
+                    {viewingRequest.attachments.map((link, i) => (
+                      <a
+                        key={i}
+                        href={link.startsWith("http") ? link : `https://${link}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <Link className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{link}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                {(viewingRequest.requesterName === currentUser?.name || currentUser?.isAdmin) && viewingRequest.status !== "completed" && (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setEditingRequest(viewingRequest);
+                    setEditForm({
+                      title: viewingRequest.title,
+                      description: viewingRequest.description || "",
+                      assignedTo: viewingRequest.assignedToName,
+                      department: viewingRequest.department,
+                      priority: viewingRequest.priority,
+                      dueDate: viewingRequest.dueDate ? viewingRequest.dueDate.slice(0, 10) : "",
+                      attachments: viewingRequest.attachments || [],
+                      newAttachment: "",
+                    });
+                    setViewingRequest(null);
+                  }}>
+                    <Pencil className="w-3 h-3 mr-1" /> Editar
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setViewingRequest(null)}>Fechar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Request Modal */}
+      <Dialog open={!!editingRequest} onOpenChange={(open) => !open && setEditingRequest(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Requisição</DialogTitle>
+          </DialogHeader>
+          {editingRequest && (
+            <div className="space-y-4">
+              <div>
+                <Label>Título</Label>
+                <Input value={editForm.title} onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Descrição</Label>
+                <Textarea value={editForm.description} onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))} rows={3} />
+              </div>
+              <div>
+                <Label>Departamento</Label>
+                <Select value={editForm.department} onValueChange={(v) => setEditForm(f => ({ ...f, department: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(departmentLabels).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Atribuir para</Label>
+                <Select value={editForm.assignedTo} onValueChange={(v) => setEditForm(f => ({ ...f, assignedTo: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {users.filter(u => u.active).map(u => (
+                      <SelectItem key={u.id} value={u.name}>{u.name}{u.role ? ` (${u.role})` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Prioridade</Label>
+                  <Select value={editForm.priority} onValueChange={(v) => setEditForm(f => ({ ...f, priority: v as InternalRequest["priority"] }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(priorityLabels).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Prazo</Label>
+                  <DatePicker value={editForm.dueDate} onChange={(v) => setEditForm(f => ({ ...f, dueDate: v }))} placeholder="Selecionar prazo" />
+                </div>
+              </div>
+              <div>
+                <Label className="flex items-center gap-1.5"><Paperclip className="w-3.5 h-3.5" /> Links / Documentos</Label>
+                <div className="flex gap-2 mt-1.5">
+                  <Input
+                    value={editForm.newAttachment}
+                    onChange={(e) => setEditForm(f => ({ ...f, newAttachment: e.target.value }))}
+                    placeholder="Cole um link (URL, Google Drive, etc.)"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && editForm.newAttachment.trim()) {
+                        e.preventDefault();
+                        setEditForm(f => ({ ...f, attachments: [...f.attachments, f.newAttachment.trim()], newAttachment: "" }));
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => {
+                    if (editForm.newAttachment.trim()) {
+                      setEditForm(f => ({ ...f, attachments: [...f.attachments, f.newAttachment.trim()], newAttachment: "" }));
+                    }
+                  }} disabled={!editForm.newAttachment.trim()}>
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {editForm.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {editForm.attachments.map((link, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary max-w-[250px]">
+                        <Link className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{link}</span>
+                        <button onClick={() => setEditForm(f => ({ ...f, attachments: f.attachments.filter((_, idx) => idx !== i) }))} className="hover:text-destructive flex-shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditingRequest(null)}>Cancelar</Button>
+                <Button onClick={() => {
+                  if (!editForm.title) { toast.error("Título é obrigatório"); return; }
+                  const assignedUser = users.find(u => u.name === editForm.assignedTo);
+                  updateRequest(editingRequest.id, {
+                    title: editForm.title,
+                    description: editForm.description,
+                    assignedToName: editForm.assignedTo,
+                    assignedToId: assignedUser?.id || editingRequest.assignedToId,
+                    department: editForm.department,
+                    priority: editForm.priority,
+                    dueDate: editForm.dueDate || undefined,
+                    attachments: editForm.attachments.length > 0 ? editForm.attachments : undefined,
+                  });
+                  toast.success("Requisição atualizada!");
+                  setEditingRequest(null);
+                }} disabled={!editForm.title}>
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
