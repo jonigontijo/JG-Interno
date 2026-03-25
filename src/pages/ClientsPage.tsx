@@ -23,7 +23,12 @@ const getDemandStatus = (client: Client, tasks: any[]) => {
 type SortField = "company" | "services" | "dueDay" | "monthlyValue" | null;
 type SortOrder = "asc" | "desc";
 
-const serviceOptions = ["Tráfego", "Social Media", "Sites", "Branding", "Consultoria"];
+const serviceOptions = [
+  "Tráfego Meta", "Tráfego Google",
+  "Social Media - 3 Posts", "Social Media - 5 Posts", "Social Media - 7 Posts",
+  "Inside Sales", "Landing Page", "Site Institucional",
+  "Branding", "SEO", "Email Marketing", "Suporte IA", "Comercial",
+];
 
 export default function ClientsPage() {
   const { clients, tasks, addClient } = useAppStore();
