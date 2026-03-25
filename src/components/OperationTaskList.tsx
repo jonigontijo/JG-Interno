@@ -40,10 +40,19 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
   const myClientIds = new Set([...myTaskClientIds, ...myTeamClientIds]);
   const generalTasks = tasks.filter(t => t.assignee !== myName && myClientIds.has(t.clientId));
 
+  const now24h = Date.now() - 24 * 60 * 60 * 1000;
+  const hideOldDone = (t: Task) => {
+    if (t.status !== "done") return true;
+    if (t.type === "recurring") return true;
+    if (!t.completedAt) return true;
+    return new Date(t.completedAt).getTime() > now24h;
+  };
+
   // Admins/Gerente see all
-  const baseTasks = isAdminOrGerente
+  const baseTasks = (isAdminOrGerente
     ? (activeView === "mine" ? myTasks : tasks.filter(t => t.assignee !== myName))
-    : (activeView === "mine" ? myTasks : generalTasks);
+    : (activeView === "mine" ? myTasks : generalTasks)
+  ).filter(hideOldDone);
 
   const displayTasks = useMemo(() => {
     if (periodFilter === "all") return baseTasks;
