@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, Users, ArrowRight, Trash2, Film } from "lucide-react";
+import { Plus, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, Users, ArrowRight, Trash2, Film, Paperclip, Link, X } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useAppStore, type InternalRequest } from "@/store/useAppStore";
 import { toast } from "sonner";
@@ -58,6 +58,8 @@ export default function RequestsPage() {
     department: "",
     priority: "normal" as InternalRequest["priority"],
     dueDate: "",
+    attachments: [] as string[],
+    newAttachment: "",
   });
 
   const isAdmin = currentUser?.isAdmin || false;
@@ -98,12 +100,13 @@ export default function RequestsPage() {
       status: "pending",
       createdAt: new Date().toISOString(),
       dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+      attachments: formData.attachments.length > 0 ? formData.attachments : undefined,
     };
 
     addRequest(newRequest);
     toast.success(`Requisição criada e tarefa enviada para ${formData.assignedTo}`);
     setIsDialogOpen(false);
-    setFormData({ title: "", description: "", assignedTo: "", clientId: "", department: "", priority: "normal", dueDate: "" });
+    setFormData({ title: "", description: "", assignedTo: "", clientId: "", department: "", priority: "normal", dueDate: "", attachments: [], newAttachment: "" });
   };
 
   const handleStatusChange = (requestId: string, newStatus: InternalRequest["status"]) => {
@@ -308,6 +311,48 @@ export default function RequestsPage() {
                   <Input type="datetime-local" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} />
                 </div>
               </div>
+              <div>
+                <Label className="flex items-center gap-1.5"><Paperclip className="w-3.5 h-3.5" /> Links / Documentos</Label>
+                <div className="flex gap-2 mt-1.5">
+                  <Input
+                    value={formData.newAttachment}
+                    onChange={(e) => setFormData({ ...formData, newAttachment: e.target.value })}
+                    placeholder="Cole um link (URL, Google Drive, etc.)"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && formData.newAttachment.trim()) {
+                        e.preventDefault();
+                        setFormData(f => ({ ...f, attachments: [...f.attachments, f.newAttachment.trim()], newAttachment: "" }));
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (formData.newAttachment.trim()) {
+                        setFormData(f => ({ ...f, attachments: [...f.attachments, f.newAttachment.trim()], newAttachment: "" }));
+                      }
+                    }}
+                    disabled={!formData.newAttachment.trim()}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {formData.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {formData.attachments.map((link, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary max-w-[250px]">
+                        <Link className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{link}</span>
+                        <button onClick={() => setFormData(f => ({ ...f, attachments: f.attachments.filter((_, idx) => idx !== i) }))} className="hover:text-destructive flex-shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                 <Button onClick={handleCreateRequest} disabled={!formData.title || !formData.assignedTo || !formData.department}>
@@ -389,6 +434,16 @@ export default function RequestsPage() {
                       <span className="text-primary">Redistribuída por {request.redistributedBy}</span>
                     )}
                   </div>
+                  {request.attachments && request.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {request.attachments.map((link, i) => (
+                        <a key={i} href={link.startsWith("http") ? link : `https://${link}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors max-w-[300px]">
+                          <Link className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{link}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {/* Delete - only requester or admin */}

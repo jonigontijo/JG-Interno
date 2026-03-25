@@ -42,6 +42,7 @@ export interface InternalRequest {
   taskId?: string;
   redistributedTo?: string;
   redistributedBy?: string;
+  attachments?: string[];
 }
 
 export interface ProductivityRecord {
