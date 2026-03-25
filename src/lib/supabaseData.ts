@@ -191,6 +191,7 @@ export function mapRequestFromDB(row: any): any {
     priority: row.priority, status: row.status, createdAt: row.created_at,
     dueDate: row.due_date, taskId: row.task_id,
     redistributedTo: row.redistributed_to, redistributedBy: row.redistributed_by,
+    attachments: row.attachments || [],
   };
 }
 
@@ -203,6 +204,7 @@ export function mapRequestToDB(r: any): any {
     priority: r.priority, status: r.status, created_at: r.createdAt,
     due_date: r.dueDate, task_id: r.taskId,
     redistributed_to: r.redistributedTo, redistributed_by: r.redistributedBy,
+    attachments: r.attachments || [],
   };
 }
 
