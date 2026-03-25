@@ -35,8 +35,7 @@ export default function TasksPage() {
   // Force re-render every 30s so elapsed time updates live
   useTimeTick(30000);
 
-  // Map module_access keys → task module names for team visibility
-  const MODULE_TO_TASK_MODULE: Record<string, string[]> = {
+  const SECTOR_TO_TASK_MODULE: Record<string, string[]> = {
     "traffic": ["Tráfego"],
     "social": ["Social Media"],
     "production": ["Produção"],
@@ -46,18 +45,25 @@ export default function TasksPage() {
     "financial": ["Financeiro"],
   };
 
-  // Admins see all; others see own tasks + tasks from modules they have access to
+  // Admin sees all; others see own tasks + tasks from sectors they have visibility permission for
   const myTasks = currentUser?.isAdmin
     ? tasks
     : tasks.filter(t => {
         if (t.assignee === currentUser?.name) return true;
-        const access = currentUser?.moduleAccess || [];
-        for (const mod of access) {
-          const taskModules = MODULE_TO_TASK_MODULE[mod];
+        const sectorAccess = currentUser?.sectorVisibility || [];
+        for (const sector of sectorAccess) {
+          const taskModules = SECTOR_TO_TASK_MODULE[sector];
           if (taskModules && taskModules.includes(t.module)) return true;
         }
         return false;
       });
+
+  // #region agent log
+  if (typeof window !== 'undefined' && !(window as any).__dbg_tasks_logged) {
+    (window as any).__dbg_tasks_logged = true;
+    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4f2940'},body:JSON.stringify({sessionId:'4f2940',location:'TasksPage.tsx:visibility',message:'Task visibility info',data:{userName:currentUser?.name,isAdmin:currentUser?.isAdmin,sectorVisibility:currentUser?.sectorVisibility,totalTasks:tasks.length,visibleTasks:myTasks.length,ownTasks:tasks.filter(t=>t.assignee===currentUser?.name).length},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
 
   const isUrgent = (t: Task) => t.urgency === "urgent" || t.urgency === "critical" || t.status === "urgent" || t.status === "critical";
   const terminalStatuses = ["done", "completed", "paused", "in_progress", "approval", "waiting_client"];
@@ -198,7 +204,7 @@ export default function TasksPage() {
 
   return (
     <div>
-      <PageHeader title="Tarefas" description={`${myTasks.length} tarefa${myTasks.length !== 1 ? "s" : ""}${currentUser?.isAdmin ? " no sistema" : " atribuídas a você"}`}>
+      <PageHeader title="Tarefas" description={`${myTasks.length} tarefa${myTasks.length !== 1 ? "s" : ""}${currentUser?.isAdmin ? " no sistema" : (currentUser?.sectorVisibility?.length ? " (suas + setores liberados)" : " atribuídas a você")}`}>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border overflow-hidden">
             <button onClick={() => setView("kanban")} className={`p-2 transition-colors ${view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>

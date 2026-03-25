@@ -64,9 +64,9 @@ export default function RequestsPage() {
 
   const isAdmin = currentUser?.isAdmin || false;
   const isGerente = currentUser?.roles?.some(r => r.includes("Gerente Operacional")) || false;
+  const hasSectorVisibility = (currentUser?.sectorVisibility || []).length > 0;
   const canSeeAll = isAdmin || isGerente;
 
-  // Get clients the current user is assigned to
   const myClientIds = canSeeAll
     ? clients.map(c => c.id)
     : clients.filter(c => c.assignedTeam?.some(a => a.memberName === currentUser?.name)).map(c => c.id);
@@ -124,13 +124,25 @@ export default function RequestsPage() {
     setRedistributeTo("");
   };
 
-  // Visibility: admin/gerente see all, others see only their clients' requests or assigned to them
+  const SECTOR_DEPARTMENTS: Record<string, string[]> = {
+    "traffic": ["Tráfego", "Tráfego Pago"],
+    "social": ["Social Media"],
+    "production": ["Produção"],
+    "tech": ["Tech", "Suporte", "Tech / Sites"],
+    "inside-sales": ["Inside Sales"],
+    "onboarding": ["Onboarding"],
+    "financial": ["Financeiro"],
+  };
+
   const filteredRequests = requests.filter((r) => {
-    // First apply visibility restriction
     if (!canSeeAll) {
       const isMyRequest = r.assignedToName === currentUser?.name || r.requesterName === currentUser?.name;
       const isMyClientRequest = r.clientId ? myClientIds.includes(r.clientId) : false;
-      if (!isMyRequest && !isMyClientRequest) return false;
+      const isMySectorRequest = hasSectorVisibility && (currentUser?.sectorVisibility || []).some(sector => {
+        const depts = SECTOR_DEPARTMENTS[sector] || [];
+        return depts.some(d => r.department?.toLowerCase().includes(d.toLowerCase()));
+      });
+      if (!isMyRequest && !isMyClientRequest && !isMySectorRequest) return false;
     }
     // Then apply tab filter
     if (filter === "mine") return r.assignedToName === currentUser?.name;

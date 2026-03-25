@@ -13,6 +13,7 @@ export interface AppUser {
   active: boolean;
   hireDate?: string;
   moduleAccess?: string[];
+  sectorVisibility?: string[];
   recoveryEmail?: string;
 }
 
@@ -116,6 +117,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       active: p.active !== false,
       hireDate: p.hire_date,
       moduleAccess: p.module_access || DEFAULT_MODULES,
+      sectorVisibility: p.sector_visibility || [],
       recoveryEmail: p.recovery_email || '',
     }));
 
@@ -241,6 +243,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         is_admin: data.isAdmin ?? user.isAdmin,
         active: data.active ?? user.active,
         module_access: data.moduleAccess ?? user.moduleAccess,
+        sector_visibility: data.sectorVisibility ?? user.sectorVisibility ?? [],
       };
       if (data.hireDate !== undefined) profileUpdate.hire_date = data.hireDate || null;
       if (data.username) profileUpdate.username = data.username.toLowerCase();
@@ -411,6 +414,7 @@ async function loadProfile(authId: string): Promise<AppUser | null> {
     isAdmin: data.is_admin || false,
     active: data.active !== false,
     moduleAccess: data.module_access || DEFAULT_MODULES,
+    sectorVisibility: data.sector_visibility || [],
     recoveryEmail: data.recovery_email || '',
   };
 }

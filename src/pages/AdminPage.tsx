@@ -114,7 +114,7 @@ export default function AdminPage() {
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [expandedTab, setExpandedTab] = useState<"roles" | "modules">("modules");
   const [form, setForm] = useState({
-    name: "", username: "", password: "", roles: [] as string[], isAdmin: false, hireDate: "", moduleAccess: [] as string[], recoveryEmail: "",
+    name: "", username: "", password: "", roles: [] as string[], isAdmin: false, hireDate: "", moduleAccess: [] as string[], sectorVisibility: [] as string[], recoveryEmail: "",
   });
   const [isNewUser, setIsNewUser] = useState(false);
 
@@ -123,7 +123,7 @@ export default function AdminPage() {
   const handleOpenNew = () => {
     setEditingUser(null);
     setIsNewUser(true);
-    setForm({ name: "", username: "", password: "", roles: [], isAdmin: false, hireDate: "", moduleAccess: ["dashboard", "clients", "tasks", "requests", "ad-hoc"], recoveryEmail: "" });
+    setForm({ name: "", username: "", password: "", roles: [], isAdmin: false, hireDate: "", moduleAccess: ["dashboard", "clients", "tasks", "requests", "ad-hoc"], sectorVisibility: [], recoveryEmail: "" });
     setShowModal(true);
   };
 
@@ -135,6 +135,7 @@ export default function AdminPage() {
       roles: user.roles || [user.role],
       isAdmin: user.isAdmin, hireDate: user.hireDate || "",
       moduleAccess: user.moduleAccess || ["dashboard", "clients", "tasks", "requests", "ad-hoc"],
+      sectorVisibility: user.sectorVisibility || [],
       recoveryEmail: user.recoveryEmail || "",
     });
     setShowModal(true);
@@ -151,6 +152,23 @@ export default function AdminPage() {
     setForm(f => ({
       ...f,
       moduleAccess: f.moduleAccess.includes(key) ? f.moduleAccess.filter(m => m !== key) : [...f.moduleAccess, key],
+    }));
+  };
+
+  const SECTOR_OPTIONS = [
+    { key: "traffic", label: "Tráfego" },
+    { key: "social", label: "Social Media" },
+    { key: "production", label: "Produção" },
+    { key: "tech", label: "Tech / Sites" },
+    { key: "inside-sales", label: "Inside Sales" },
+    { key: "onboarding", label: "Onboarding" },
+    { key: "financial", label: "Financeiro" },
+  ];
+
+  const toggleFormSector = (key: string) => {
+    setForm(f => ({
+      ...f,
+      sectorVisibility: f.sectorVisibility.includes(key) ? f.sectorVisibility.filter(s => s !== key) : [...f.sectorVisibility, key],
     }));
   };
 
@@ -195,12 +213,13 @@ export default function AdminPage() {
     }
     const displayRole = form.roles.join(", ");
     const moduleAccess = form.isAdmin ? ALL_MODULES.map(m => m.key) : form.moduleAccess;
+    const sectorVisibility = form.isAdmin ? SECTOR_OPTIONS.map(s => s.key) : form.sectorVisibility;
     if (editingUser) {
       updateUser(editingUser.id, {
         name: form.name, username: form.username,
         ...(form.password ? { password: form.password } : {}),
         role: displayRole, roles: form.roles, isAdmin: form.isAdmin, hireDate: form.hireDate,
-        moduleAccess, recoveryEmail: form.recoveryEmail,
+        moduleAccess, sectorVisibility, recoveryEmail: form.recoveryEmail,
       });
       const teamMember = team.find(m => m.name === editingUser.name || m.id === editingUser.id);
       if (teamMember) {
@@ -213,7 +232,7 @@ export default function AdminPage() {
         id, username: form.username, password: form.password,
         name: form.name, role: displayRole, roles: form.roles,
         isAdmin: form.isAdmin, active: true, hireDate: form.hireDate,
-        moduleAccess, recoveryEmail: form.recoveryEmail,
+        moduleAccess, sectorVisibility, recoveryEmail: form.recoveryEmail,
       });
     }
     setShowModal(false);
@@ -455,6 +474,33 @@ export default function AdminPage() {
                               ))}
                             </>
                           )}
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            <p className="text-[10px] font-semibold text-foreground mb-1.5">Visibilidade de Tarefas por Setor</p>
+                            <p className="text-[9px] text-muted-foreground mb-1.5">Permite ver tarefas de outros colaboradores do setor (para heads):</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {SECTOR_OPTIONS.map(sector => {
+                                const active = (user.sectorVisibility || []).includes(sector.key);
+                                return (
+                                  <button
+                                    key={sector.key}
+                                    onClick={() => {
+                                      const current = user.sectorVisibility || [];
+                                      const newSectors = active ? current.filter(s => s !== sector.key) : [...current, sector.key];
+                                      updateUser(user.id, { sectorVisibility: newSectors });
+                                      toast.success(active ? `Visibilidade "${sector.label}" removida de ${user.name}` : `Visibilidade "${sector.label}" liberada para ${user.name}`);
+                                    }}
+                                    className={`text-[10px] px-2.5 py-1 rounded-full border transition-all ${
+                                      active
+                                        ? "bg-warning/15 text-warning border-warning/30 font-medium"
+                                        : "bg-transparent text-muted-foreground border-border hover:border-warning/30 hover:text-foreground"
+                                    }`}
+                                  >
+                                    {active ? "👁 " : ""}{sector.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -597,6 +643,38 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1.5">
+              Visibilidade de Tarefas por Setor
+              <span className="text-muted-foreground font-normal ml-1">(ver tarefas de outros do setor)</span>
+            </label>
+            {form.isAdmin ? (
+              <p className="text-[11px] text-primary p-3 rounded-md border bg-primary/5">✓ Admin vê tarefas de todos os setores automaticamente</p>
+            ) : (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-2">Libere para este usuário ver as tarefas de outros colaboradores no setor (ideal para heads de setor):</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SECTOR_OPTIONS.map(sector => {
+                    const active = form.sectorVisibility.includes(sector.key);
+                    return (
+                      <button
+                        key={sector.key}
+                        type="button"
+                        onClick={() => toggleFormSector(sector.key)}
+                        className={`text-[10px] px-2.5 py-1 rounded-full border transition-all ${
+                          active
+                            ? "bg-warning/15 text-warning border-warning/30 font-medium"
+                            : "bg-transparent text-muted-foreground border-border hover:border-warning/30"
+                        }`}
+                      >
+                        {active ? "👁 " : ""}{sector.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

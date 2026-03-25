@@ -18,7 +18,15 @@ interface OperationTaskListProps {
 export default function OperationTaskList({ moduleName, tasks }: OperationTaskListProps) {
   const { startTask, completeTask, pauseTask, resumeTask, deleteTask, updateTask, clients, logAudit } = useAppStore();
   const currentUser = useAuthStore((s) => s.currentUser);
+  const MODULE_NAME_TO_SECTOR: Record<string, string> = {
+    "Tráfego": "traffic", "Social Media": "social", "Produção": "production",
+    "Tech": "tech", "Inside Sales": "inside-sales", "Onboarding": "onboarding", "Financeiro": "financial",
+  };
+
   const isAdminOrGerente = currentUser?.isAdmin || currentUser?.roles?.some(r => r.includes("Gerente Operacional"));
+  const sectorKey = MODULE_NAME_TO_SECTOR[moduleName] || "";
+  const hasSectorVisibility = (currentUser?.sectorVisibility || []).includes(sectorKey);
+  const canSeeAllSectorTasks = isAdminOrGerente || hasSectorVisibility;
 
   const [activeView, setActiveView] = useState<"mine" | "general">("mine");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
@@ -28,9 +36,7 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
 
   const myName = currentUser?.name || "";
 
-  // My tasks: assigned to me
   const myTasks = tasks.filter(t => t.assignee === myName);
-  // General tasks: tasks on clients where I'm part of the team OR where I have tasks
   const myTaskClientIds = new Set(tasks.filter(t => t.assignee === myName).map(t => t.clientId));
   const myTeamClientIds = new Set(
     clients
@@ -48,8 +54,7 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
     return new Date(t.completedAt).getTime() > now24h;
   };
 
-  // Admins/Gerente see all
-  const baseTasks = (isAdminOrGerente
+  const baseTasks = (canSeeAllSectorTasks
     ? (activeView === "mine" ? myTasks : tasks.filter(t => t.assignee !== myName))
     : (activeView === "mine" ? myTasks : generalTasks)
   ).filter(hideOldDone);
