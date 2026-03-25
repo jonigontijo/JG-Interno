@@ -49,7 +49,7 @@ export default function RequestsPage() {
   const [recordingForm, setRecordingForm] = useState({
     clientId: "", date: "", time: "", videomaker: "", notes: "", roteiro: "", roteiroSent: false,
   });
-  const [filter, setFilter] = useState<"all" | "mine" | "sent">("all");
+  const [filter, setFilter] = useState<"all" | "mine" | "sent" | "completed">("all");
   const [viewingRequest, setViewingRequest] = useState<InternalRequest | null>(null);
   const [editingRequest, setEditingRequest] = useState<InternalRequest | null>(null);
   const [editForm, setEditForm] = useState({
@@ -140,9 +140,7 @@ export default function RequestsPage() {
     "financial": ["Financeiro"],
   };
 
-  const filteredRequests = requests.filter((r) => {
-    if (r.status === "completed") return false;
-
+  const visibleRequests = requests.filter((r) => {
     if (!canSeeAll) {
       const isMyRequest = r.assignedToName === currentUser?.name || r.requesterName === currentUser?.name;
       const isMyClientRequest = r.clientId ? myClientIds.includes(r.clientId) : false;
@@ -152,6 +150,12 @@ export default function RequestsPage() {
       });
       if (!isMyRequest && !isMyClientRequest && !isMySectorRequest) return false;
     }
+    return true;
+  });
+
+  const filteredRequests = visibleRequests.filter((r) => {
+    if (filter === "completed") return r.status === "completed";
+    if (r.status === "completed") return false;
     if (filter === "mine") return r.assignedToName === currentUser?.name;
     if (filter === "sent") return r.requesterName === currentUser?.name;
     return true;
@@ -386,22 +390,26 @@ export default function RequestsPage() {
 
       {/* Filters */}
       <div className="flex gap-2 mb-4">
-        {(["all", "mine", "sent"] as const).map((f) => {
-          const label = f === "all" ? "Todas" : f === "mine" ? "Para mim" : "Enviadas por mim";
-          const count = f === "mine"
-            ? requests.filter((r) => r.assignedToName === currentUser?.name).length
+        {(["all", "mine", "sent", "completed"] as const).map((f) => {
+          const active = visibleRequests.filter(r => r.status !== "completed");
+          const label = f === "all" ? "Todas" : f === "mine" ? "Para mim" : f === "sent" ? "Enviadas por mim" : "Concluídas";
+          const count = f === "completed"
+            ? visibleRequests.filter(r => r.status === "completed").length
+            : f === "mine"
+            ? active.filter(r => r.assignedToName === currentUser?.name).length
             : f === "sent"
-            ? requests.filter((r) => r.requesterName === currentUser?.name).length
-            : requests.length;
+            ? active.filter(r => r.requesterName === currentUser?.name).length
+            : active.length;
+          const hasPending = f === "mine" && active.filter(r => r.assignedToName === currentUser?.name && r.status === "pending").length > 0;
           return (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${filter === f ? (f === "completed" ? "bg-success text-success-foreground" : "bg-primary text-primary-foreground") : "bg-muted text-muted-foreground hover:text-foreground"}`}
             >
               {label}
               {count > 0 && (
-                <span className={`ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${filter === f ? "bg-primary-foreground/20" : f === "mine" && requests.filter((r) => r.assignedToName === currentUser?.name && r.status === "pending").length > 0 ? "bg-destructive text-destructive-foreground" : "bg-muted-foreground/20"}`}>
+                <span className={`ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${filter === f ? "bg-primary-foreground/20" : hasPending ? "bg-destructive text-destructive-foreground" : "bg-muted-foreground/20"}`}>
                   {count}
                 </span>
               )}
