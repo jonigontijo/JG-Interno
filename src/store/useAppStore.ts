@@ -104,6 +104,7 @@ export interface AppState {
   updateClient: (id: string, data: Partial<Client>) => void;
   removeClient: (id: string) => void;
   startClientPipeline: (clientId: string) => void;
+  forceAdvancePipeline: (clientId: string) => void;
 
   // Client team & recurring services
   assignTeamMemberToClient: (clientId: string, assignment: ClientTeamAssignment) => void;
@@ -364,6 +365,83 @@ export const useAppStore = create<AppState>()((set, get) => ({
       tasks: [...s.tasks, pipelineTask],
       clientPipelines: [...s.clientPipelines, pipeline],
     }));
+  },
+  forceAdvancePipeline: (clientId) => {
+    const state = get();
+    const pipeline = state.clientPipelines.find(p => p.clientId === clientId);
+    if (!pipeline || pipeline.completedAt) return;
+    const client = state.clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const currentStep = ONBOARDING_PIPELINE.find(s => s.order === pipeline.currentStepOrder);
+    const nextStep = ONBOARDING_PIPELINE.find(s => s.order === pipeline.currentStepOrder + 1);
+    const now = new Date();
+
+    const currentTaskId = `t-pipe-${clientId}-${pipeline.currentStepOrder}`;
+    const currentTask = state.tasks.find(t => t.id === currentTaskId);
+    const needsMarkDone = currentTask && currentTask.status !== "done";
+
+    if (nextStep) {
+      const team = state.team;
+      const findByRole = (role: string) => team.find(m =>
+        m.role.toLowerCase().includes(role.toLowerCase()) ||
+        m.roles.some(r => r.toLowerCase().includes(role.toLowerCase()))
+      );
+      const assignee = findByRole(nextStep.assignRole);
+      const deadline = new Date(now.getTime() + nextStep.deadlineDays * 86400000);
+
+      const existingNextTask = state.tasks.find(t => t.id === `t-pipe-${clientId}-${nextStep.order}`);
+      const nextTask: Task = {
+        id: `t-pipe-${clientId}-${nextStep.order}`,
+        title: `[Onboarding] ${nextStep.title}`,
+        client: client.company,
+        clientId,
+        module: nextStep.module,
+        sector: "Onboarding",
+        type: "pipeline",
+        assignee: assignee?.name || "Não atribuído",
+        deadline: deadline.toISOString().slice(0, 10),
+        urgency: "priority",
+        status: "pending",
+        weight: 3,
+        estimatedHours: nextStep.estimatedHours,
+        hasRework: false,
+        createdAt: now.toISOString().slice(0, 10),
+      };
+
+      set((s) => ({
+        tasks: [
+          ...s.tasks.map(t => {
+            if (t.id === currentTaskId && needsMarkDone) return { ...t, status: "done" as const, completedAt: now.toISOString() };
+            return t;
+          }),
+          ...(existingNextTask ? [] : [nextTask]),
+        ],
+        clientPipelines: s.clientPipelines.map(p =>
+          p.clientId === clientId
+            ? { ...p, currentStepOrder: nextStep.order, completedSteps: [...new Set([...p.completedSteps, pipeline.currentStepOrder])] }
+            : p
+        ),
+        clients: s.clients.map(c =>
+          c.id === clientId ? { ...c, status: nextStep.clientStatus } : c
+        ),
+      }));
+    } else {
+      set((s) => ({
+        tasks: s.tasks.map(t => {
+          if (t.id === currentTaskId && needsMarkDone) return { ...t, status: "done" as const, completedAt: now.toISOString() };
+          return t;
+        }),
+        clientPipelines: s.clientPipelines.map(p =>
+          p.clientId === clientId
+            ? { ...p, completedSteps: [...new Set([...p.completedSteps, pipeline.currentStepOrder])], completedAt: now.toISOString() }
+            : p
+        ),
+        clients: s.clients.map(c =>
+          c.id === clientId ? { ...c, status: "Operação", substatus: "Ativo" } : c
+        ),
+      }));
+    }
   },
   updateClient: (id, data) => {
     set((s) => ({ clients: s.clients.map((c) => (c.id === id ? { ...c, ...data } : c)) }));

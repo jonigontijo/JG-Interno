@@ -45,7 +45,7 @@ const accessFields = [
 ];
 
 export default function OnboardingPage() {
-  const { clients, tasks, clientPipelines, startClientPipeline, completeTask, startTask, updateOnboardingChecklist, updateOnboardingAccess, getOnboardingData } = useAppStore();
+  const { clients, tasks, clientPipelines, startClientPipeline, forceAdvancePipeline, completeTask, startTask, updateOnboardingChecklist, updateOnboardingAccess, getOnboardingData } = useAppStore();
   const { currentUser } = useAuthStore();
   const currentUserRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
   const isAdmin = currentUser?.isAdmin || false;
@@ -219,24 +219,37 @@ export default function OnboardingPage() {
                                     <span className="text-[9px] text-muted-foreground">{step.estimatedHours}h</span>
                                   </div>
                                 </div>
-                                {isCurrent && task && task.status !== "done" && (() => {
+                                {isCurrent && (() => {
                                   const normalizedCurrentRoles = new Set(
                                     (currentUserRoles || [])
                                       .map(r => (r || "").toString().trim().toLowerCase())
                                       .filter(Boolean)
                                   );
                                   const canComplete = isAdmin || step.allowedRoles.some(r => normalizedCurrentRoles.has(r.trim().toLowerCase()));
-                                  return canComplete ? (
+                                  const isStuck = !task || task.status === "done";
+
+                                  if (!canComplete) return (
+                                    <span className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium cursor-not-allowed" title={`Apenas: ${step.allowedRoles.join(", ")}`}>
+                                      <Lock className="w-3 h-3" /> Sem permissão
+                                    </span>
+                                  );
+
+                                  if (isStuck) return (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); forceAdvancePipeline(client.id); toast.success("Etapa concluída! Pipeline avançado."); }}
+                                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-warning text-warning-foreground text-[10px] font-medium hover:bg-warning/90 transition-colors"
+                                    >
+                                      <CheckCircle className="w-3 h-3" /> Concluir Etapa
+                                    </button>
+                                  );
+
+                                  return (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleCompleteStep(task.id); }}
                                       className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[10px] font-medium hover:bg-primary/90 transition-colors"
                                     >
                                       <CheckCircle className="w-3 h-3" /> Concluir
                                     </button>
-                                  ) : (
-                                    <span className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium cursor-not-allowed" title={`Apenas: ${step.allowedRoles.join(", ")}`}>
-                                      <Lock className="w-3 h-3" /> Sem permissão
-                                    </span>
                                   );
                                 })()}
                                 {isCompleted && task?.completedAt && (

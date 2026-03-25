@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 const availableServices = [
-  "Tráfego Pago", "Tráfego Meta", "Tráfego Google",
+  "Tráfego Meta", "Tráfego Google",
   "Social Media - 3 Posts", "Social Media - 5 Posts", "Social Media - 7 Posts",
   "Inside Sales", "Landing Page", "Site Institucional",
   "Branding", "SEO", "Email Marketing", "Suporte IA", "Comercial",
