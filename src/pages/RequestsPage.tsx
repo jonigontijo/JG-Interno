@@ -685,15 +685,15 @@ export default function RequestsPage() {
 
       {/* Detail View Modal */}
       <Dialog open={!!viewingRequest} onOpenChange={(open) => !open && setViewingRequest(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 pr-6">
               {viewingRequest && getStatusIcon(viewingRequest.status)}
-              {viewingRequest?.title}
+              <span className="truncate">{viewingRequest?.title}</span>
             </DialogTitle>
           </DialogHeader>
           {viewingRequest && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto max-h-[70vh]">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium ${getPriorityClasses(viewingRequest.priority)}`}>
                   {priorityLabels[viewingRequest.priority]}
@@ -709,7 +709,7 @@ export default function RequestsPage() {
               {viewingRequest.description && (
                 <div>
                   <p className="text-xs font-medium text-foreground mb-1">Descrição</p>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3">{viewingRequest.description}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3 break-words">{viewingRequest.description}</p>
                 </div>
               )}
 
@@ -747,7 +747,7 @@ export default function RequestsPage() {
               </div>
 
               {viewingRequest.attachments && viewingRequest.attachments.length > 0 && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5"><Paperclip className="w-3.5 h-3.5" /> Links / Documentos</p>
                   <div className="space-y-1.5">
                     {viewingRequest.attachments.map((link, i) => (
@@ -756,10 +756,10 @@ export default function RequestsPage() {
                         href={link.startsWith("http") ? link : `https://${link}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors"
+                        className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors overflow-hidden min-w-0"
                       >
                         <Link className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{link}</span>
+                        <span className="truncate min-w-0">{link}</span>
                       </a>
                     ))}
                   </div>
