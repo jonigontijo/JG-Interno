@@ -141,6 +141,8 @@ export default function RequestsPage() {
   };
 
   const filteredRequests = requests.filter((r) => {
+    if (r.status === "completed") return false;
+
     if (!canSeeAll) {
       const isMyRequest = r.assignedToName === currentUser?.name || r.requesterName === currentUser?.name;
       const isMyClientRequest = r.clientId ? myClientIds.includes(r.clientId) : false;
@@ -150,7 +152,6 @@ export default function RequestsPage() {
       });
       if (!isMyRequest && !isMyClientRequest && !isMySectorRequest) return false;
     }
-    // Then apply tab filter
     if (filter === "mine") return r.assignedToName === currentUser?.name;
     if (filter === "sent") return r.requesterName === currentUser?.name;
     return true;
