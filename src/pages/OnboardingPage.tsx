@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock } from "lucide-react";
 
 const checklistItems = [
-  "Grupo do cliente criado",
   "Briefing preenchido",
   "Acessos Meta",
   "Acessos Google",
