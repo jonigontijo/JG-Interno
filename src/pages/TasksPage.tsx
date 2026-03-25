@@ -58,13 +58,6 @@ export default function TasksPage() {
         return false;
       });
 
-  // #region agent log
-  if (typeof window !== 'undefined' && !(window as any).__dbg_tasks_logged) {
-    (window as any).__dbg_tasks_logged = true;
-    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4f2940'},body:JSON.stringify({sessionId:'4f2940',location:'TasksPage.tsx:visibility',message:'Task visibility info',data:{userName:currentUser?.name,isAdmin:currentUser?.isAdmin,sectorVisibility:currentUser?.sectorVisibility,totalTasks:tasks.length,visibleTasks:myTasks.length,ownTasks:tasks.filter(t=>t.assignee===currentUser?.name).length},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
-
   const isUrgent = (t: Task) => t.urgency === "urgent" || t.urgency === "critical" || t.status === "urgent" || t.status === "critical";
   const terminalStatuses = ["done", "completed", "paused", "in_progress", "approval", "waiting_client"];
 
