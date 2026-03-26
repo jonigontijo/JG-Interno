@@ -8,7 +8,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { RecurrencePicker } from "@/components/ui/recurrence-picker";
 import { toast } from "sonner";
 import { formatTime } from "@/data/mockData";
-import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat } from "lucide-react";
+import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat, Filter } from "lucide-react";
 import { useTimeTick } from "@/hooks/useTimeTick";
 import type { Task } from "@/data/mockData";
 
@@ -31,9 +31,14 @@ export default function TasksPage() {
   const [newTask, setNewTask] = useState({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], description: "", recurType: undefined as any, recurUntil: "", recurDaysInterval: undefined as any });
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<"all" | "today" | "week" | "custom">("all");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   // Force re-render every 30s so elapsed time updates live
   useTimeTick(30000);
+
+  const toYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   const SECTOR_TO_TASK_MODULE: Record<string, string[]> = {
     "traffic": ["Tráfego"],
@@ -58,25 +63,65 @@ export default function TasksPage() {
         return false;
       });
 
+  const filteredTasks = React.useMemo(() => {
+    if (periodFilter === "all") return myTasks;
+    const now = new Date();
+    const todayStr = toYmd(now);
+
+    const matchesToday = (t: Task) => {
+      if (t.status === "done" || t.status === "completed") {
+        if (t.completedAt) {
+          const completed = new Date(t.completedAt);
+          if (!Number.isNaN(completed.getTime())) return toYmd(completed) === todayStr;
+        }
+        return t.deadline?.slice(0, 10) === todayStr;
+      }
+      return t.deadline?.slice(0, 10) === todayStr;
+    };
+
+    if (periodFilter === "today") return myTasks.filter(matchesToday);
+    if (periodFilter === "week") {
+      const dayOfWeek = now.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + mondayOffset);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const start = toYmd(monday);
+      const end = toYmd(sunday);
+      return myTasks.filter(t => {
+        const dl = t.deadline?.slice(0, 10) || "";
+        return dl >= start && dl <= end;
+      });
+    }
+    if (periodFilter === "custom" && customStart && customEnd) {
+      return myTasks.filter(t => {
+        const dl = t.deadline?.slice(0, 10) || "";
+        return dl >= customStart && dl <= customEnd;
+      });
+    }
+    return myTasks;
+  }, [myTasks, periodFilter, customStart, customEnd]);
+
   const isUrgent = (t: Task) => t.urgency === "urgent" || t.urgency === "critical" || t.status === "urgent" || t.status === "critical";
   const terminalStatuses = ["done", "completed", "paused", "in_progress", "approval", "waiting_client"];
 
   const getColumnTasks = (colKey: string) => {
     switch (colKey) {
       case "urgent":
-        return myTasks.filter(t => isUrgent(t) && t.status !== "done" && t.status !== "completed" && t.status !== "paused");
+        return filteredTasks.filter(t => isUrgent(t) && t.status !== "done" && t.status !== "completed" && t.status !== "paused");
       case "backlog":
-        return myTasks.filter(t => !isUrgent(t) && !terminalStatuses.includes(t.status));
+        return filteredTasks.filter(t => !isUrgent(t) && !terminalStatuses.includes(t.status));
       case "in_progress":
-        return myTasks.filter(t => t.status === "in_progress" && !isUrgent(t));
+        return filteredTasks.filter(t => t.status === "in_progress" && !isUrgent(t));
       case "paused":
-        return myTasks.filter(t => t.status === "paused");
+        return filteredTasks.filter(t => t.status === "paused");
       case "approval":
-        return myTasks.filter(t => (t.status === "approval" || t.status === "waiting_client") && !isUrgent(t));
+        return filteredTasks.filter(t => (t.status === "approval" || t.status === "waiting_client") && !isUrgent(t));
       case "done":
-        return myTasks.filter(t => t.status === "done");
+        return filteredTasks.filter(t => t.status === "done");
       case "completed":
-        return myTasks.filter(t => t.status === "completed");
+        return filteredTasks.filter(t => t.status === "completed");
       default:
         return [];
     }
@@ -197,7 +242,7 @@ export default function TasksPage() {
 
   return (
     <div>
-      <PageHeader title="Tarefas" description={`${myTasks.length} tarefa${myTasks.length !== 1 ? "s" : ""}${currentUser?.isAdmin ? " no sistema" : (currentUser?.sectorVisibility?.length ? " (suas + setores liberados)" : " atribuídas a você")}`}>
+      <PageHeader title="Tarefas" description={`${filteredTasks.length} tarefa${filteredTasks.length !== 1 ? "s" : ""}${currentUser?.isAdmin ? " no sistema" : (currentUser?.sectorVisibility?.length ? " (suas + setores liberados)" : " atribuídas a você")}`}>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border overflow-hidden">
             <button onClick={() => setView("kanban")} className={`p-2 transition-colors ${view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
@@ -212,6 +257,34 @@ export default function TasksPage() {
           </button>
         </div>
       </PageHeader>
+
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+        {(["all", "today", "week", "custom"] as const).map(p => {
+          const label = p === "all" ? "Todas" : p === "today" ? "Hoje" : p === "week" ? "Esta semana" : "Personalizado";
+          return (
+            <button
+              key={p}
+              onClick={() => setPeriodFilter(p)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                periodFilter === p ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+        {periodFilter === "custom" && (
+          <div className="flex items-center gap-1.5 ml-2">
+            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="px-2 py-1 rounded-md border bg-background text-[11px] text-foreground" />
+            <span className="text-[10px] text-muted-foreground">até</span>
+            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="px-2 py-1 rounded-md border bg-background text-[11px] text-foreground" />
+          </div>
+        )}
+        {periodFilter !== "all" && (
+          <span className="text-[10px] text-muted-foreground ml-1">({filteredTasks.length} tarefas)</span>
+        )}
+      </div>
 
       {view === "kanban" ? (
         <div ref={kanbanContainerRef} className="flex gap-4 overflow-x-auto pb-4">
@@ -343,7 +416,7 @@ export default function TasksPage() {
               </tr>
             </thead>
             <tbody>
-              {myTasks.map(task => {
+              {filteredTasks.map(task => {
                 const elapsed = getElapsedTime(task);
                 return (
                   <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
