@@ -5,9 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useAppStore } from "@/store/useAppStore";
-import { setupStoreSync } from "@/lib/supabaseData";
 import { supabase } from "@/integrations/supabase/client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -59,82 +58,84 @@ function AuthenticatedApp() {
   const initialized = useAuthStore((s) => s.initialized);
   const initAuth = useAuthStore((s) => s.initAuth);
   const loadFromDB = useAppStore((s) => s.loadFromDB);
+  const reloadClients = useAppStore((s) => s.reloadClients);
+  const reloadTasks = useAppStore((s) => s.reloadTasks);
+  const reloadTeam = useAppStore((s) => s.reloadTeam);
+  const reloadLeads = useAppStore((s) => s.reloadLeads);
+  const reloadRequests = useAppStore((s) => s.reloadRequests);
+  const reloadQuotes = useAppStore((s) => s.reloadQuotes);
   const resetAppStore = useAppStore((s) => s.reset);
   const [dataLoaded, setDataLoaded] = useState(false);
-  const syncUnsubRef = useRef<(() => void) | null>(null);
   const prevUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     initAuth();
   }, []);
 
-  // Reset state when user changes (logout or different user)
   useEffect(() => {
     const userId = currentUser?.authId || null;
     if (prevUserRef.current && prevUserRef.current !== userId) {
-      // User changed or logged out - reset everything
-      if (syncUnsubRef.current) {
-        syncUnsubRef.current();
-        syncUnsubRef.current = null;
-      }
       resetAppStore();
       setDataLoaded(false);
     }
     prevUserRef.current = userId;
   }, [currentUser?.authId]);
 
-  // Load data from DB when authenticated and data not yet loaded
   useEffect(() => {
     if (currentUser && !dataLoaded) {
       loadFromDB()
-        .then(() => {
-          setDataLoaded(true);
-          if (syncUnsubRef.current) {
-            syncUnsubRef.current();
-          }
-          syncUnsubRef.current = setupStoreSync(useAppStore.subscribe, useAppStore.getState);
-        })
+        .then(() => setDataLoaded(true))
         .catch((err) => {
           console.error('Failed to load data from DB:', err);
           setDataLoaded(true);
         });
     }
-
-    return () => {
-      if (syncUnsubRef.current) {
-        syncUnsubRef.current();
-        syncUnsubRef.current = null;
-      }
-    };
   }, [currentUser, dataLoaded]);
 
-  // Realtime subscription: reload data instantly when any team member makes changes
+  const createDebouncedReload = useCallback(() => {
+    const timers: Record<string, ReturnType<typeof setTimeout>> = {};
+    return (table: string, reloadFn: () => Promise<void>) => {
+      if (timers[table]) clearTimeout(timers[table]);
+      timers[table] = setTimeout(() => { reloadFn(); }, 2000);
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedLoad = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => { loadFromDB(); }, 1000);
-    };
+    const debouncedReload = createDebouncedReload();
 
     const channel = supabase
       .channel('global-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_team_assignments' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'internal_requests' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quote_requests' }, debouncedLoad)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_recurring_services' }, debouncedLoad)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        debouncedReload('clients', reloadClients);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_team_assignments' }, () => {
+        debouncedReload('clients', reloadClients);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_recurring_services' }, () => {
+        debouncedReload('clients', reloadClients);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        debouncedReload('tasks', reloadTasks);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
+        debouncedReload('team', reloadTeam);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        debouncedReload('leads', reloadLeads);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'internal_requests' }, () => {
+        debouncedReload('requests', reloadRequests);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quote_requests' }, () => {
+        debouncedReload('quotes', reloadQuotes);
+      })
       .subscribe();
 
-    // Fallback polling every 2 minutes
-    const interval = setInterval(() => { loadFromDB(); }, 120000);
+    const interval = setInterval(() => { loadFromDB(); }, 300000);
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
       clearInterval(interval);
     };

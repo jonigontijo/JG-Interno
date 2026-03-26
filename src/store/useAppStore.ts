@@ -1,182 +1,17 @@
 import { create } from "zustand";
-import { Client, Task, Lead, TeamMember, RecurringService, ClientTeamAssignment, mockClients, mockTasks, mockLeads, mockTeam } from "@/data/mockData";
-import { ONBOARDING_PIPELINE, PipelineStep } from "@/data/onboardingPipeline";
-import { loadAllData, setSyncingFlag, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB } from "@/lib/supabaseData";
-import { supabase } from "@/integrations/supabase/client";
+import { mockClients, mockTasks, mockLeads, mockTeam } from "@/data/mockData";
+import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
+import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQuoteRequests, loadInternalRequests, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB, db } from "@/lib/supabaseData";
 import { toast } from "sonner";
 
-function db(table: string) {
-  return (supabase as any).from(table);
-}
+export type {
+  QuoteRequest, InternalRequest, ProductivityRecord, SettingItem,
+  OnboardingData, ClientDnaLink, ClientDnaCredential, ClientDnaDate,
+  ClientDna, ClientPipelineState, AppState,
+  Client, Task, Lead, TeamMember, RecurringService, ClientTeamAssignment,
+} from "./types";
 
-export interface QuoteRequest {
-  id: string;
-  clientId: string;
-  clientName: string;
-  service: string;
-  requestedBy: string;
-  requestedAt: string;
-  notes: string;
-  status: "pending" | "proposal_sent" | "approved" | "paid" | "cancelled";
-  proposalValue?: number;
-  proposalSentAt?: string;
-  approvedAt?: string;
-  paidAt?: string;
-}
-
-export interface InternalRequest {
-  id: string;
-  title: string;
-  description: string;
-  requesterId: string;
-  requesterName: string;
-  assignedToName: string;
-  assignedToId: string;
-  clientId?: string;
-  clientName?: string;
-  department: string;
-  priority: "low" | "normal" | "high" | "urgent";
-  status: "pending" | "in_progress" | "completed" | "cancelled" | "redistributed";
-  createdAt: string;
-  dueDate?: string;
-  taskId?: string;
-  redistributedTo?: string;
-  redistributedBy?: string;
-  attachments?: string[];
-}
-
-export interface ProductivityRecord {
-  userId: string;
-  userName: string;
-  tasksCompletedToday: number;
-  avgTasksPerDay: number;
-  totalTasksCompleted: number;
-  totalDaysWorked: number;
-  lastUpdated: string;
-}
-
-export interface SettingItem {
-  id: string;
-  category: string;
-  label: string;
-  value: string;
-  type: "text" | "select" | "number";
-  options?: string[];
-}
-
-export interface OnboardingData {
-  clientId: string;
-  checklist: Record<string, boolean>;
-  accessData: Record<string, string>;
-}
-
-export interface ClientDnaLink { label: string; url: string; }
-export interface ClientDnaCredential { label: string; value: string; }
-export interface ClientDnaDate { label: string; date: string; }
-export interface ClientDna {
-  clientId: string;
-  links: ClientDnaLink[];
-  notes: Record<string, string>;
-  credentials: ClientDnaCredential[];
-  importantDates: ClientDnaDate[];
-}
-
-export interface ClientPipelineState {
-  clientId: string;
-  currentStepOrder: number;
-  completedSteps: number[];
-  startedAt: string;
-  completedAt?: string;
-}
-
-export interface AppState {
-  clients: Client[];
-  tasks: Task[];
-  leads: Lead[];
-  team: TeamMember[];
-  quoteRequests: QuoteRequest[];
-  onboardingData: OnboardingData[];
-  clientDna: ClientDna[];
-  clientPipelines: ClientPipelineState[];
-  requests: InternalRequest[];
-  productivity: ProductivityRecord[];
-  notifications: { module: string; count: number }[];
-  settings: SettingItem[];
-
-  // Load from DB & reset
-  loadFromDB: () => Promise<void>;
-  reset: () => void;
-
-  // Settings actions
-  updateSetting: (id: string, value: string) => void;
-  addSetting: (setting: SettingItem) => void;
-  removeSetting: (id: string) => void;
-
-  // Client actions
-  addClient: (client: Client) => void;
-  updateClient: (id: string, data: Partial<Client>) => void;
-  removeClient: (id: string) => void;
-  startClientPipeline: (clientId: string) => void;
-  forceAdvancePipeline: (clientId: string) => void;
-
-  // Client team & recurring services
-  assignTeamMemberToClient: (clientId: string, assignment: ClientTeamAssignment) => void;
-  removeTeamMemberFromClient: (clientId: string, memberId: string) => void;
-  addRecurringService: (clientId: string, service: RecurringService) => void;
-  updateRecurringService: (clientId: string, serviceId: string, data: Partial<RecurringService>) => void;
-  removeRecurringService: (clientId: string, serviceId: string) => void;
-  generateRecurringTasks: (clientId: string) => void;
-
-  // Task actions
-  addTask: (task: Task) => void;
-  updateTask: (id: string, data: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  startTask: (id: string) => Promise<void>;
-  pauseTask: (id: string) => Promise<void>;
-  resumeTask: (id: string) => Promise<void>;
-  completeTask: (id: string) => Promise<void>;
-
-  // Lead actions
-  addLead: (lead: Lead) => void;
-  updateLead: (id: string, data: Partial<Lead>) => void;
-
-  // Team actions
-  addTeamMember: (member: TeamMember) => void;
-  updateTeamMember: (id: string, data: Partial<TeamMember>) => void;
-  removeTeamMember: (id: string) => void;
-
-  // Quote request actions
-  addQuoteRequest: (qr: QuoteRequest) => void;
-  updateQuoteRequest: (id: string, data: Partial<QuoteRequest>) => void;
-  completeQuoteRequest: (id: string) => void;
-
-  // Internal request actions
-  addRequest: (req: InternalRequest) => void;
-  updateRequest: (id: string, data: Partial<InternalRequest>) => void;
-  deleteRequest: (id: string) => void;
-  redistributeRequest: (id: string, newAssigneeId: string, newAssigneeName: string, redistributedBy: string) => void;
-  getRequestsForUser: (userName: string) => InternalRequest[];
-  getPendingRequestsCount: (userName: string) => number;
-
-  // Productivity
-  getProductivity: (userName: string) => ProductivityRecord;
-  getWorkloadSuggestion: (department: string) => { name: string; load: number; avgPerDay: number; pendingTasks: number }[];
-
-  // Onboarding actions
-  updateOnboardingChecklist: (clientId: string, item: string, checked: boolean) => void;
-  updateOnboardingAccess: (clientId: string, key: string, value: string) => void;
-  getOnboardingData: (clientId: string) => OnboardingData;
-
-  // Client DNA actions
-  getClientDna: (clientId: string) => ClientDna;
-  updateClientDna: (clientId: string, data: Partial<Omit<ClientDna, "clientId">>) => void;
-
-  // Audit
-  logAudit: (userName: string, action: string, entity: string, entityId?: string) => void;
-
-  // Notifications
-  getNotifications: () => { module: string; count: number }[];
-}
+import type { AppState, SettingItem, ClientPipelineState, Task } from "./types";
 
 const DEFAULT_SETTINGS: SettingItem[] = [
   { id: "s1", category: "Empresa", label: "Nome da Empresa", value: "JG - Joni Gontijo Gestão & Tráfego Pago", type: "text" },
@@ -206,11 +41,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   settings: [],
 
   loadFromDB: async () => {
-    setSyncingFlag(true);
     try {
       const data = await loadAllData();
 
-      // Only use mock data if DB is connected but genuinely empty (first-time setup)
       const isFirstSetup = data._dbConnected &&
         data.clients.length === 0 && data.tasks.length === 0 &&
         data.team.length === 0 && data.leads.length === 0;
@@ -229,8 +62,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
           settings: DEFAULT_SETTINGS,
           productivity: [],
         });
-        // Allow sync to write seed data to DB
-        setSyncingFlag(false);
         return;
       }
 
@@ -250,10 +81,60 @@ export const useAppStore = create<AppState>()((set, get) => ({
     } catch (err) {
       console.error('Error loading data from DB:', err);
       toast.error('Erro ao carregar dados do banco. Verifique sua conexão.');
-      // Do NOT fall back to mock data - keep whatever is in the store
-      // This prevents overwriting real data with fake data
-    } finally {
-      setSyncingFlag(false);
+    }
+  },
+
+  reloadClients: async () => {
+    try {
+      const clients = await loadClients();
+      set({ clients });
+    } catch (err) {
+      console.error('Error reloading clients:', err);
+    }
+  },
+
+  reloadTasks: async () => {
+    try {
+      const tasks = await loadTasks();
+      set({ tasks });
+    } catch (err) {
+      console.error('Error reloading tasks:', err);
+    }
+  },
+
+  reloadTeam: async () => {
+    try {
+      const team = await loadTeamMembers();
+      set({ team });
+    } catch (err) {
+      console.error('Error reloading team:', err);
+    }
+  },
+
+  reloadLeads: async () => {
+    try {
+      const leads = await loadLeads();
+      set({ leads });
+    } catch (err) {
+      console.error('Error reloading leads:', err);
+    }
+  },
+
+  reloadQuotes: async () => {
+    try {
+      const quoteRequests = await loadQuoteRequests();
+      set({ quoteRequests });
+    } catch (err) {
+      console.error('Error reloading quotes:', err);
+    }
+  },
+
+  reloadRequests: async () => {
+    try {
+      const requests = await loadInternalRequests();
+      set({ requests });
+    } catch (err) {
+      console.error('Error reloading requests:', err);
     }
   },
 

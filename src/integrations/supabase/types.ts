@@ -7,43 +7,35 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
-      approval_tokens: {
+      audit_logs: {
         Row: {
-          active: boolean
-          client_id: string
-          client_name: string
-          created_at: string
-          created_by: string
-          expires_at: string
+          action: string
+          created_at: string | null
+          entity: string
+          entity_id: string | null
           id: string
-          token: string
+          user_name: string
         }
         Insert: {
-          active?: boolean
-          client_id: string
-          client_name: string
-          created_at?: string
-          created_by: string
-          expires_at?: string
+          action: string
+          created_at?: string | null
+          entity: string
+          entity_id?: string | null
           id?: string
-          token?: string
+          user_name: string
         }
         Update: {
-          active?: boolean
-          client_id?: string
-          client_name?: string
-          created_at?: string
-          created_by?: string
-          expires_at?: string
+          action?: string
+          created_at?: string | null
+          entity?: string
+          entity_id?: string | null
           id?: string
-          token?: string
+          user_name?: string
         }
         Relationships: []
       }
@@ -83,6 +75,30 @@ export type Database = {
         }
         Relationships: []
       }
+      client_dna: {
+        Row: {
+          client_id: string
+          credentials: Json | null
+          important_dates: Json | null
+          links: Json | null
+          notes: Json | null
+        }
+        Insert: {
+          client_id: string
+          credentials?: Json | null
+          important_dates?: Json | null
+          links?: Json | null
+          notes?: Json | null
+        }
+        Update: {
+          client_id?: string
+          credentials?: Json | null
+          important_dates?: Json | null
+          links?: Json | null
+          notes?: Json | null
+        }
+        Relationships: []
+      }
       client_pipelines: {
         Row: {
           client_id: string
@@ -104,63 +120,6 @@ export type Database = {
           completed_steps?: number[]
           current_step_order?: number
           started_at?: string
-        }
-        Relationships: []
-      }
-      client_posts: {
-        Row: {
-          approval_status: string
-          approved_at: string | null
-          client_id: string
-          client_name: string
-          file_name: string
-          file_type: string
-          file_url: string
-          id: string
-          notes: string | null
-          posted: boolean
-          posted_at: string | null
-          rejected_at: string | null
-          rejection_reason: string | null
-          status: string
-          uploaded_at: string
-          uploaded_by: string
-        }
-        Insert: {
-          approval_status?: string
-          approved_at?: string | null
-          client_id: string
-          client_name: string
-          file_name: string
-          file_type?: string
-          file_url: string
-          id?: string
-          notes?: string | null
-          posted?: boolean
-          posted_at?: string | null
-          rejected_at?: string | null
-          rejection_reason?: string | null
-          status?: string
-          uploaded_at?: string
-          uploaded_by: string
-        }
-        Update: {
-          approval_status?: string
-          approved_at?: string | null
-          client_id?: string
-          client_name?: string
-          file_name?: string
-          file_type?: string
-          file_url?: string
-          id?: string
-          notes?: string | null
-          posted?: boolean
-          posted_at?: string | null
-          rejected_at?: string | null
-          rejection_reason?: string | null
-          status?: string
-          uploaded_at?: string
-          uploaded_by?: string
         }
         Relationships: []
       }
@@ -358,6 +317,7 @@ export type Database = {
         Row: {
           assigned_to_id: string
           assigned_to_name: string
+          attachments: Json | null
           client_id: string | null
           client_name: string | null
           created_at: string
@@ -377,6 +337,7 @@ export type Database = {
         Insert: {
           assigned_to_id: string
           assigned_to_name: string
+          attachments?: Json | null
           client_id?: string | null
           client_name?: string | null
           created_at?: string
@@ -396,6 +357,7 @@ export type Database = {
         Update: {
           assigned_to_id?: string
           assigned_to_name?: string
+          attachments?: Json | null
           client_id?: string | null
           client_name?: string | null
           created_at?: string
@@ -483,6 +445,33 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          token: string
+          used: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          token: string
+          used?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          token?: string
+          used?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       productivity: {
         Row: {
           avg_tasks_per_day: number
@@ -522,8 +511,10 @@ export type Database = {
           is_admin: boolean
           module_access: string[]
           name: string
+          recovery_email: string | null
           role: string
           roles: string[]
+          sector_visibility: string[] | null
           username: string
         }
         Insert: {
@@ -534,8 +525,10 @@ export type Database = {
           is_admin?: boolean
           module_access?: string[]
           name: string
+          recovery_email?: string | null
           role?: string
           roles?: string[]
+          sector_visibility?: string[] | null
           username: string
         }
         Update: {
@@ -546,8 +539,10 @@ export type Database = {
           is_admin?: boolean
           module_access?: string[]
           name?: string
+          recovery_email?: string | null
           role?: string
           roles?: string[]
+          sector_visibility?: string[] | null
           username?: string
         }
         Relationships: []
@@ -597,6 +592,45 @@ export type Database = {
           requested_by?: string
           service?: string
           status?: string
+        }
+        Relationships: []
+      }
+      registration_requests: {
+        Row: {
+          created_at: string | null
+          desired_roles: string[] | null
+          id: string
+          message: string | null
+          name: string
+          password_temp: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          desired_roles?: string[] | null
+          id?: string
+          message?: string | null
+          name: string
+          password_temp: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          desired_roles?: string[] | null
+          id?: string
+          message?: string | null
+          name?: string
+          password_temp?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          username?: string
         }
         Relationships: []
       }
@@ -650,7 +684,7 @@ export type Database = {
       }
       tasks: {
         Row: {
-          accumulated_minutes: number
+          accumulated_minutes: number | null
           actual_hours: number | null
           assignee: string
           client: string
@@ -664,6 +698,8 @@ export type Database = {
           id: string
           module: string
           paused_at: string | null
+          recur_days_interval: number | null
+          recur_type: string | null
           recur_until: string | null
           reviewer: string | null
           sector: string
@@ -676,7 +712,7 @@ export type Database = {
           weight: number
         }
         Insert: {
-          accumulated_minutes?: number
+          accumulated_minutes?: number | null
           actual_hours?: number | null
           assignee?: string
           client?: string
@@ -690,6 +726,8 @@ export type Database = {
           id: string
           module?: string
           paused_at?: string | null
+          recur_days_interval?: number | null
+          recur_type?: string | null
           recur_until?: string | null
           reviewer?: string | null
           sector?: string
@@ -702,7 +740,7 @@ export type Database = {
           weight?: number
         }
         Update: {
-          accumulated_minutes?: number
+          accumulated_minutes?: number | null
           actual_hours?: number | null
           assignee?: string
           client?: string
@@ -716,6 +754,8 @@ export type Database = {
           id?: string
           module?: string
           paused_at?: string | null
+          recur_days_interval?: number | null
+          recur_type?: string | null
           recur_until?: string | null
           reviewer?: string | null
           sector?: string

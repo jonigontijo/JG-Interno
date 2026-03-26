@@ -109,7 +109,7 @@ export default function TrafficPage() {
           </div>
           <RecurrencePicker
             value={{ recurType: newTask.recurType, recurUntil: newTask.recurUntil, recurDaysInterval: newTask.recurDaysInterval }}
-            onChange={({ recurType, recurUntil, recurDaysInterval }) => setNewTask(t => ({ ...t, recurType, recurUntil, recurDaysInterval }))}
+            onChange={({ recurType, recurUntil, recurDaysInterval }) => setNewTask(t => ({ ...t, recurType, recurUntil: recurUntil ?? '', recurDaysInterval }))}
           />
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground">Cancelar</button>

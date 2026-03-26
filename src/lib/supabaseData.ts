@@ -1,31 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Client, Task, Lead, TeamMember } from "@/data/mockData";
-import { toast } from "sonner";
 
-// Helper for untyped table access
-function db(table: string) {
+export function db(table: string) {
   return (supabase as any).from(table);
-}
-
-// Flag to prevent sync from firing during data load
-let _isSyncing = false;
-export function setSyncingFlag(val: boolean) { _isSyncing = val; }
-
-// Pending sync queue for retry
-const _pendingRetries: Array<() => Promise<void>> = [];
-let _retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleRetry(fn: () => Promise<void>) {
-  _pendingRetries.push(fn);
-  if (!_retryTimer) {
-    _retryTimer = setTimeout(async () => {
-      _retryTimer = null;
-      const batch = _pendingRetries.splice(0);
-      for (const op of batch) {
-        try { await op(); } catch (e) { console.error('Retry failed:', e); }
-      }
-    }, 5000);
-  }
 }
 
 // ============ TEAM MEMBERS ============
@@ -208,7 +185,7 @@ export function mapRequestToDB(r: any): any {
   };
 }
 
-// ============ OTHER ENTITIES ============
+// ============ OTHER ENTITY MAPPERS ============
 export function mapPipelineFromDB(row: any): any {
   return {
     clientId: row.client_id, currentStepOrder: row.current_step_order,
@@ -216,24 +193,10 @@ export function mapPipelineFromDB(row: any): any {
   };
 }
 
-export function mapPipelineToDB(p: any): any {
-  return {
-    client_id: p.clientId, current_step_order: p.currentStepOrder,
-    completed_steps: p.completedSteps, started_at: p.startedAt, completed_at: p.completedAt,
-  };
-}
-
 export function mapSettingFromDB(row: any): any {
   return {
     id: row.id, category: row.category, label: row.label,
     value: row.value, type: row.type, options: row.options,
-  };
-}
-
-export function mapSettingToDB(s: any): any {
-  return {
-    id: s.id, category: s.category, label: s.label,
-    value: s.value, type: s.type, options: s.options,
   };
 }
 
@@ -253,6 +216,64 @@ export function mapProductivityToDB(p: any): any {
     total_tasks_completed: p.totalTasksCompleted, total_days_worked: p.totalDaysWorked,
     last_updated: p.lastUpdated,
   };
+}
+
+// ============ GRANULAR LOADERS ============
+
+export async function loadClients() {
+  const [clientsRes, assignmentsRes, servicesRes] = await Promise.all([
+    db('clients').select('*'),
+    db('client_team_assignments').select('*'),
+    db('client_recurring_services').select('*'),
+  ]);
+  if (clientsRes.error) throw clientsRes.error;
+  const assignments = assignmentsRes.data || [];
+  const services = servicesRes.data || [];
+  return (clientsRes.data || []).map((row: any) => mapClientFromDB(row, assignments, services));
+}
+
+export async function loadTasks() {
+  const { data, error } = await db('tasks').select('*');
+  if (error) throw error;
+  return (data || []).map(mapTaskFromDB);
+}
+
+export async function loadTeamMembers() {
+  const [teamRes, profilesRes] = await Promise.all([
+    db('team_members').select('*'),
+    db('profiles').select('name, active'),
+  ]);
+  if (teamRes.error) throw teamRes.error;
+  const activeProfileNames = new Set(
+    (profilesRes.data || [])
+      .filter((p: any) => p.active)
+      .map((p: any) => (p.name || '').toLowerCase())
+  );
+  return (teamRes.data || []).map(mapTeamFromDB).filter((m: TeamMember) => activeProfileNames.has(m.name.toLowerCase()));
+}
+
+export async function loadLeads() {
+  const { data, error } = await db('leads').select('*');
+  if (error) throw error;
+  return (data || []).map(mapLeadFromDB);
+}
+
+export async function loadQuoteRequests() {
+  const { data, error } = await db('quote_requests').select('*');
+  if (error) throw error;
+  return (data || []).map(mapQuoteFromDB);
+}
+
+export async function loadInternalRequests() {
+  const { data, error } = await db('internal_requests').select('*');
+  if (error) throw error;
+  return (data || []).map(mapRequestFromDB);
+}
+
+export async function loadClientPipelines() {
+  const { data, error } = await db('client_pipelines').select('*');
+  if (error) throw error;
+  return (data || []).map(mapPipelineFromDB);
 }
 
 // ============ LOAD ALL DATA ============
@@ -277,7 +298,6 @@ export async function loadAllData() {
   const [teamRes, clientsRes, tasksRes, leadsRes, assignmentsRes, servicesRes,
     quotesRes, requestsRes, pipelinesRes, onboardingRes, settingsRes, prodRes, profilesRes, dnaRes] = results;
 
-  // Check for critical errors (connection failures etc.)
   const errors = results.filter(r => r.error);
   if (errors.length > 0) {
     console.error('DB load errors:', errors.map(e => e.error));
@@ -289,16 +309,14 @@ export async function loadAllData() {
   const assignments = assignmentsRes.data || [];
   const services = servicesRes.data || [];
 
-  // Build set of active profile names for filtering team members
   const activeProfileNames = new Set(
     (profilesRes.data || [])
       .filter((p: any) => p.active)
       .map((p: any) => (p.name || '').toLowerCase())
   );
 
-  // Only include team members that have an active profile (user account)
   const allTeam = (teamRes.data || []).map(mapTeamFromDB);
-  const activeTeam = allTeam.filter(m => activeProfileNames.has(m.name.toLowerCase()));
+  const activeTeam = allTeam.filter((m: TeamMember) => activeProfileNames.has(m.name.toLowerCase()));
 
   return {
     team: activeTeam,
@@ -322,119 +340,4 @@ export async function loadAllData() {
     })),
     _dbConnected: true,
   };
-}
-
-// ============ SYNC SUBSCRIPTION ============
-export function setupStoreSync(subscribe: any, getState: () => any): () => void {
-  let prevState = getState();
-
-  const unsubscribe = subscribe((state: any) => {
-    // Skip sync while loading data from DB
-    if (_isSyncing) {
-      prevState = state;
-      return;
-    }
-
-    const prev = prevState;
-    prevState = state;
-
-    if (prev.clients !== state.clients) syncArray(prev.clients, state.clients, 'clients', mapClientToDB, syncClientRelations);
-    if (prev.tasks !== state.tasks) syncArray(prev.tasks, state.tasks, 'tasks', mapTaskToDB);
-    if (prev.team !== state.team) syncArray(prev.team, state.team, 'team_members', mapTeamToDB);
-    if (prev.leads !== state.leads) syncArray(prev.leads, state.leads, 'leads', mapLeadToDB);
-    if (prev.quoteRequests !== state.quoteRequests) syncArray(prev.quoteRequests, state.quoteRequests, 'quote_requests', mapQuoteToDB);
-    if (prev.requests !== state.requests) syncArray(prev.requests, state.requests, 'internal_requests', mapRequestToDB);
-    if (prev.settings !== state.settings) syncArray(prev.settings, state.settings, 'settings', mapSettingToDB);
-    if (prev.clientPipelines !== state.clientPipelines) syncArray(prev.clientPipelines, state.clientPipelines, 'client_pipelines', mapPipelineToDB, undefined, 'client_id');
-    if (prev.productivity !== state.productivity) syncArray(prev.productivity, state.productivity, 'productivity', mapProductivityToDB, undefined, 'user_id');
-    if (prev.onboardingData !== state.onboardingData) syncOnboarding(prev.onboardingData, state.onboardingData);
-  });
-
-  return unsubscribe;
-}
-
-function syncArray(prev: any[], next: any[], table: string, mapper: (item: any) => any, extraSync?: (prev: any[], next: any[]) => void, idCol = 'id') {
-  const prevIds = new Set(prev.map((i: any) => i.id || i.clientId || i.userId));
-  const nextIds = new Set(next.map((i: any) => i.id || i.clientId || i.userId));
-
-  // Upsert changed items
-  for (const item of next) {
-    const itemId = item.id || item.clientId || item.userId;
-    const prevItem = prev.find((p: any) => (p.id || p.clientId || p.userId) === itemId);
-    if (!prevItem || prevItem !== item) {
-      const mapped = mapper(item);
-      db(table).upsert(mapped).then(({ error }: any) => {
-        if (error) {
-          console.error(`Sync upsert [${table}]:`, error);
-          toast.error(`Erro ao salvar ${table}: ${error.message}`);
-          // Schedule retry
-          scheduleRetry(async () => {
-            const { error: retryErr } = await db(table).upsert(mapped);
-            if (retryErr) console.error(`Retry upsert [${table}] failed:`, retryErr);
-          });
-        }
-      });
-    }
-  }
-
-  // Delete removed items
-  for (const item of prev) {
-    const itemId = item.id || item.clientId || item.userId;
-    if (!nextIds.has(itemId)) {
-      db(table).delete().eq(idCol, itemId).then(({ error }: any) => {
-        if (error) {
-          console.error(`Sync delete [${table}]:`, error);
-          scheduleRetry(async () => {
-            const { error: retryErr } = await db(table).delete().eq(idCol, itemId);
-            if (retryErr) console.error(`Retry delete [${table}] failed:`, retryErr);
-          });
-        }
-      });
-    }
-  }
-
-  if (extraSync) extraSync(prev, next);
-}
-
-function syncClientRelations(prev: Client[], next: Client[]) {
-  for (const client of next) {
-    const prevClient = prev.find(p => p.id === client.id);
-
-    if (!prevClient || prevClient.assignedTeam !== client.assignedTeam) {
-      db('client_team_assignments').delete().eq('client_id', client.id).then(() => {
-        if (client.assignedTeam && client.assignedTeam.length > 0) {
-          db('client_team_assignments').insert(
-            client.assignedTeam!.map(a => ({
-              client_id: client.id, member_id: a.memberId, member_name: a.memberName, role: a.role, designation: a.designation || 'titular',
-            }))
-          ).then(({ error }: any) => { if (error) console.error('Sync team assignments:', error); });
-        }
-      });
-    }
-
-    if (!prevClient || prevClient.recurringServices !== client.recurringServices) {
-      db('client_recurring_services').delete().eq('client_id', client.id).then(() => {
-        if (client.recurringServices && client.recurringServices.length > 0) {
-          db('client_recurring_services').insert(
-            client.recurringServices!.map(s => ({
-              id: s.id, client_id: client.id, name: s.name, assignee_id: s.assigneeId,
-              assignee_name: s.assigneeName, frequency: s.frequency,
-              quantity_per_cycle: s.quantityPerCycle, description: s.description, active: s.active,
-            }))
-          ).then(({ error }: any) => { if (error) console.error('Sync recurring services:', error); });
-        }
-      });
-    }
-  }
-}
-
-function syncOnboarding(prev: any[], next: any[]) {
-  for (const item of next) {
-    const prevItem = prev.find((p: any) => p.clientId === item.clientId);
-    if (!prevItem || prevItem !== item) {
-      db('onboarding_data').upsert({
-        client_id: item.clientId, checklist: item.checklist, access_data: item.accessData,
-      }).then(({ error }: any) => { if (error) console.error('Sync onboarding:', error); });
-    }
-  }
 }

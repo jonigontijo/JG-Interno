@@ -102,11 +102,11 @@ export default function TasksPage() {
   };
 
   const handleCreate = () => {
-    if (!newTask.title || !newTask.clientId || !newTask.assignee || !newTask.deadline) {
+    if (!newTask.title || !newTask.assignee || !newTask.deadline) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
-    const client = clients.find(c => c.id === newTask.clientId);
+    const client = newTask.clientId ? clients.find(c => c.id === newTask.clientId) : null;
     const task: Task = {
       id: `t-${Date.now()}`,
       title: newTask.title,
@@ -241,15 +241,28 @@ export default function TasksPage() {
                         onDragStart={(e) => handleDragStart(e, task.id)}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-1">
-                            <GripVertical className="w-3 h-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <h3 className="text-sm font-medium text-foreground leading-snug">{task.title}</h3>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <GripVertical className="w-3 h-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                            <h3
+                              className="text-sm font-medium text-foreground leading-snug cursor-pointer hover:text-primary transition-colors truncate"
+                              onClick={(e) => { e.stopPropagation(); setEditTask({ ...task }); }}
+                            >
+                              {task.title}
+                            </h3>
                           </div>
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${urgencyDot(task.urgency)}`} />
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditTask({ ...task }); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
+                              title="Editar tarefa"
+                            >
+                              <Pencil className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                            </button>
+                            <span className={`w-2 h-2 rounded-full mt-0.5 ${urgencyDot(task.urgency)}`} />
+                          </div>
                         </div>
                         <p className="text-xs text-muted-foreground mb-2">{task.client}</p>
                         
-                        {/* Time tracking display */}
                         {elapsed && (
                           <div className="flex items-center gap-1 text-[10px] mb-2">
                             <Clock className="w-3 h-3" />
@@ -271,28 +284,40 @@ export default function TasksPage() {
                         </div>
                         {task.hasRework && <span className="text-[9px] text-destructive mt-1 block">⟲ Retrabalho</span>}
                         
-                        {/* Action buttons */}
                         <div className="hidden group-hover:flex gap-1 mt-2 flex-wrap">
                           {(col.key !== "in_progress" && col.key !== "done" && task.status !== "paused") && (
-                            <button onClick={async () => { await startTask(task.id); toast.success("Tarefa iniciada!"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors flex items-center gap-0.5">
+                            <button onClick={async (e) => { e.stopPropagation(); await startTask(task.id); toast.success("Tarefa iniciada!"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors flex items-center gap-0.5">
                               <Play className="w-2.5 h-2.5" /> Iniciar
                             </button>
                           )}
                           {task.status === "paused" && (
-                            <button onClick={async () => { await resumeTask(task.id); toast.success("Tarefa retomada!"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors flex items-center gap-0.5">
+                            <button onClick={async (e) => { e.stopPropagation(); await resumeTask(task.id); toast.success("Tarefa retomada!"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors flex items-center gap-0.5">
                               <Play className="w-2.5 h-2.5" /> Retomar
                             </button>
                           )}
                           {col.key === "in_progress" && (
                             <>
-                              <button onClick={async () => { await pauseTask(task.id); toast.info("Tarefa pausada"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-warning/20 text-warning hover:bg-warning/30 transition-colors flex items-center gap-0.5">
+                              <button onClick={async (e) => { e.stopPropagation(); await pauseTask(task.id); toast.info("Tarefa pausada"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-warning/20 text-warning hover:bg-warning/30 transition-colors flex items-center gap-0.5">
                                 <Pause className="w-2.5 h-2.5" /> Pausar
                               </button>
-                              <button onClick={async () => { await completeTask(task.id); toast.success("Tarefa concluída!"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-success/20 text-success hover:bg-success/30 transition-colors flex items-center gap-0.5">
+                              <button onClick={async (e) => { e.stopPropagation(); await completeTask(task.id); toast.success("Tarefa concluída!"); }} className="text-[9px] px-1.5 py-0.5 rounded bg-success/20 text-success hover:bg-success/30 transition-colors flex items-center gap-0.5">
                                 <Square className="w-2.5 h-2.5" /> Finalizar
                               </button>
                             </>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Apagar tarefa "${task.title}"?`)) {
+                                deleteTask(task.id);
+                                logAudit(currentUser?.name || 'Desconhecido', 'Apagou tarefa', task.title, task.id);
+                                toast.success("Tarefa apagada!");
+                              }
+                            }}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors flex items-center gap-0.5 ml-auto"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" /> Apagar
+                          </button>
                         </div>
                       </div>
                     );
@@ -324,7 +349,7 @@ export default function TasksPage() {
                   <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                     <td className="py-3 px-4 text-sm text-foreground">
                       <span>{task.title}</span>
-                      {task.recurUntil && <Repeat size={10} className="inline ml-1.5 text-primary opacity-60" title={`Recorrente até ${task.recurUntil}`} />}
+                      {task.recurUntil && <span title={`Recorrente até ${task.recurUntil}`}><Repeat size={10} className="inline ml-1.5 text-primary opacity-60" /></span>}
                     </td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{task.client}</td>
                     <td className="py-3 px-4"><span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{task.module}</span></td>
@@ -383,7 +408,7 @@ export default function TasksPage() {
             <input type="text" value={newTask.title} onChange={(e) => setNewTask(t => ({ ...t, title: e.target.value }))} placeholder="Título da tarefa" className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground" />
           </div>
           <div>
-            <label className="text-xs font-medium text-foreground block mb-1.5">Cliente *</label>
+            <label className="text-xs font-medium text-foreground block mb-1.5">Cliente</label>
             <select value={newTask.clientId} onChange={(e) => setNewTask(t => ({ ...t, clientId: e.target.value }))} className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground">
               <option value="">Selecione...</option>
               {[...clients].sort((a, b) => a.company.localeCompare(b.company)).map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
@@ -425,7 +450,7 @@ export default function TasksPage() {
           </div>
           <RecurrencePicker
             value={{ recurType: newTask.recurType, recurUntil: newTask.recurUntil, recurDaysInterval: newTask.recurDaysInterval }}
-            onChange={({ recurType, recurUntil, recurDaysInterval }) => setNewTask(t => ({ ...t, recurType, recurUntil, recurDaysInterval }))}
+            onChange={({ recurType, recurUntil, recurDaysInterval }) => setNewTask(t => ({ ...t, recurType, recurUntil: recurUntil ?? '', recurDaysInterval }))}
           />
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
