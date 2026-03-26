@@ -1,30 +1,21 @@
 import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import StatusBadge from "@/components/StatusBadge";
 import Modal from "@/components/Modal";
+import OperationTaskList from "@/components/OperationTaskList";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-import { Plus, Play, Square, Clock } from "lucide-react";
-import { formatTime } from "@/data/mockData";
+import { Plus } from "lucide-react";
 import type { Task } from "@/data/mockData";
-import { useTimeTick } from "@/hooks/useTimeTick";
 import { DatePicker } from "@/components/ui/date-picker";
 
 export default function InsideSalesPage() {
-  const { tasks, clients, team, addTask, startTask, completeTask, logAudit } = useAppStore();
+  const { tasks, clients, team, addTask, logAudit } = useAppStore();
   const currentUser = useAuthStore((s) => s.currentUser);
   const insideSalesTasks = tasks.filter(t => t.module === "Inside Sales");
   const insideSalesClients = clients.filter(c => c.services.some(s => s.toLowerCase().includes("inside sales")));
   const [showModal, setShowModal] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", clientId: "", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], type: "Atendimento" });
-  useTimeTick(30000);
-
-  const getElapsedTime = (task: Task): string | null => {
-    if (!task.startedAt) return null;
-    if (task.completedAt && task.timeSpentMinutes !== undefined) return formatTime(task.timeSpentMinutes);
-    return formatTime(Math.round((Date.now() - new Date(task.startedAt).getTime()) / 60000));
-  };
 
   const handleCreate = () => {
     if (!newTask.title || !newTask.clientId || !newTask.assignee || !newTask.deadline) {
@@ -83,36 +74,7 @@ export default function InsideSalesPage() {
         </div>
       </div>
 
-      <div className="grid gap-3">
-        {insideSalesTasks.map(t => {
-          const elapsed = getElapsedTime(t);
-          return (
-            <div key={t.id} className="rounded-lg border bg-card p-4 hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{t.title}</p>
-                  <p className="text-xs text-muted-foreground">{t.client} · {t.assignee} · Prazo: {t.deadline}</p>
-                  {elapsed && (
-                    <div className="flex items-center gap-1 text-[10px] mt-1">
-                      <Clock className="w-3 h-3" />
-                      <span className={t.status === "in_progress" ? "text-primary font-mono animate-pulse" : "text-muted-foreground font-mono"}>{elapsed}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={t.status} />
-                  {t.status !== "in_progress" && t.status !== "done" && (
-                    <button onClick={() => { startTask(t.id); toast.success("Iniciada!"); }} className="p-1 rounded bg-primary/20 text-primary hover:bg-primary/30"><Play className="w-3.5 h-3.5" /></button>
-                  )}
-                  {t.status === "in_progress" && (
-                    <button onClick={() => { completeTask(t.id); toast.success("Concluída!"); }} className="p-1 rounded bg-success/20 text-success hover:bg-success/30"><Square className="w-3.5 h-3.5" /></button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <OperationTaskList moduleName="Inside Sales" tasks={insideSalesTasks} />
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Nova Tarefa Inside Sales">
         <div className="space-y-4">
