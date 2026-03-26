@@ -10,6 +10,10 @@ import {
 } from "lucide-react";
 import type { Task } from "@/data/mockData";
 
+function toYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 interface OperationTaskListProps {
   moduleName: string;
   tasks: Task[];
@@ -62,10 +66,21 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
   const displayTasks = useMemo(() => {
     if (periodFilter === "all") return baseTasks;
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = toYmd(now);
+
+    const taskMatchesToday = (t: Task) => {
+      if (t.status === "done") {
+        if (t.completedAt) {
+          const completed = new Date(t.completedAt);
+          if (!Number.isNaN(completed.getTime())) return toYmd(completed) === todayStr;
+        }
+        return t.deadline === todayStr;
+      }
+      return t.deadline === todayStr;
+    };
 
     if (periodFilter === "today") {
-      return baseTasks.filter(t => t.deadline === todayStr || t.createdAt === todayStr);
+      return baseTasks.filter(taskMatchesToday);
     }
     if (periodFilter === "week") {
       const dayOfWeek = now.getDay();
@@ -74,8 +89,8 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
       monday.setDate(now.getDate() + mondayOffset);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      const start = monday.toISOString().slice(0, 10);
-      const end = sunday.toISOString().slice(0, 10);
+      const start = toYmd(monday);
+      const end = toYmd(sunday);
       return baseTasks.filter(t => (t.deadline >= start && t.deadline <= end) || (t.createdAt >= start && t.createdAt <= end));
     }
     if (periodFilter === "custom" && customStart && customEnd) {
