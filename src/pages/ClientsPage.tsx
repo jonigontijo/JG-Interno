@@ -4,7 +4,7 @@ import Modal from "@/components/Modal";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { formatCurrency } from "@/data/mockData";
-import { Search, Filter, Plus, AlertCircle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Users, Zap } from "lucide-react";
+import { Search, Filter, Plus, AlertCircle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Users, Zap, Pencil, Power, PowerOff } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -31,7 +31,7 @@ const serviceOptions = [
 ];
 
 export default function ClientsPage() {
-  const { clients, tasks, addClient } = useAppStore();
+  const { clients, tasks, addClient, updateClient } = useAppStore();
   const currentUser = useAuthStore((s) => s.currentUser);
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -39,6 +39,9 @@ export default function ClientsPage() {
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showModal, setShowModal] = useState(false);
+  const [statusTab, setStatusTab] = useState<"active" | "inactive">("active");
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [editCompanyName, setEditCompanyName] = useState("");
   const [form, setForm] = useState({
     company: "",
     name: "",
@@ -96,8 +99,38 @@ export default function ClientsPage() {
     resetForm();
   };
 
+  const handleToggleActive = (e: React.MouseEvent, clientId: string, currentSubstatus: string) => {
+    e.stopPropagation();
+    const newSubstatus = currentSubstatus === "Inativo" ? "Ativo" : "Inativo";
+    updateClient(clientId, { substatus: newSubstatus });
+    toast.success(newSubstatus === "Inativo" ? "Cliente inativado" : "Cliente reativado");
+  };
+
+  const handleStartEdit = (e: React.MouseEvent, client: Client) => {
+    e.stopPropagation();
+    setEditingClientId(client.id);
+    setEditCompanyName(client.company);
+  };
+
+  const handleSaveEdit = (e: React.MouseEvent, clientId: string) => {
+    e.stopPropagation();
+    if (!editCompanyName.trim()) { toast.error("Nome não pode ficar vazio"); return; }
+    updateClient(clientId, { company: editCompanyName.trim() });
+    toast.success("Nome atualizado");
+    setEditingClientId(null);
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingClientId(null);
+  };
+
+  const activeClients = clients.filter(c => c.substatus !== "Inativo");
+  const inactiveClients = clients.filter(c => c.substatus === "Inativo");
+
   const filtered = useMemo(() => {
-    let result = clients.filter(c => {
+    const baseList = statusTab === "active" ? activeClients : inactiveClients;
+    let result = baseList.filter(c => {
       const matchSearch = c.company.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase());
       const matchFilter = filterSM ? ((c.socialMediaPosts ?? 0) > 0) : true;
       return matchSearch && matchFilter;
@@ -117,7 +150,7 @@ export default function ClientsPage() {
     }
 
     return result;
-  }, [clients, search, filterSM, sortField, sortOrder]);
+  }, [clients, search, filterSM, sortField, sortOrder, statusTab]);
 
   const riskColor = (risk: string) => {
     switch (risk) {
@@ -143,11 +176,26 @@ export default function ClientsPage() {
 
   return (
     <div>
-      <PageHeader title="Clientes" description={`${clients.length} clientes cadastrados`}>
+      <PageHeader title="Clientes" description={`${activeClients.length} ativos · ${inactiveClients.length} inativos`}>
         <button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
           <Plus className="w-4 h-4" /> Novo Cliente
         </button>
       </PageHeader>
+
+      <div className="flex gap-1 mb-4 border-b">
+        <button
+          onClick={() => setStatusTab("active")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${statusTab === "active" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          Ativos <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-bold">{activeClients.length}</span>
+        </button>
+        <button
+          onClick={() => setStatusTab("inactive")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${statusTab === "inactive" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          Inativos <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-bold">{inactiveClients.length}</span>
+        </button>
+      </div>
 
       {/* Alert: clients without assigned team */}
       {isAdminOrGerente && clientsWithoutTeam.length > 0 && (
@@ -227,15 +275,37 @@ export default function ClientsPage() {
                 {isAdminOrGerente && <th className="text-left py-3 px-4 font-medium">Demandas</th>}
                 <th className="text-left py-3 px-4 font-medium">Risco</th>
                 <th className="text-right py-3 px-4 font-medium">Tarefas</th>
+                <th className="text-right py-3 px-4 font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(client => {
                 const smStatus = getPostStatus(client);
                 return (
-                  <tr key={client.id} onClick={() => navigate(`/clients/${client.id}`)} className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer">
+                  <tr key={client.id} onClick={() => navigate(`/clients/${client.id}`)} className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer group">
                     <td className="py-3 px-4">
-                      <p className="text-sm font-medium text-foreground">{client.company}</p>
+                      <div className="flex items-center gap-1.5">
+                        {editingClientId === client.id ? (
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <input
+                              autoFocus
+                              value={editCompanyName}
+                              onChange={e => setEditCompanyName(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") handleSaveEdit(e as any, client.id); if (e.key === "Escape") setEditingClientId(null); }}
+                              className="px-2 py-1 rounded border bg-background text-sm text-foreground w-48"
+                            />
+                            <button onClick={(e) => handleSaveEdit(e, client.id)} className="text-[9px] px-2 py-1 rounded bg-success/20 text-success hover:bg-success/30">Salvar</button>
+                            <button onClick={handleCancelEdit} className="text-[9px] px-2 py-1 rounded bg-muted text-muted-foreground hover:bg-muted/80">Cancelar</button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-foreground">{client.company}</p>
+                            <button onClick={(e) => handleStartEdit(e, client)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted transition-opacity" title="Editar nome">
+                              <Pencil className="w-3 h-3 text-muted-foreground" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                       {client.name && <p className="text-xs text-muted-foreground">{client.name}</p>}
                     </td>
                     <td className="py-3 px-4">
@@ -296,6 +366,19 @@ export default function ClientsPage() {
                       {client.overdueTasks > 0 && (
                         <span className="text-xs text-destructive ml-1">({client.overdueTasks} atrasadas)</span>
                       )}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={(e) => handleToggleActive(e, client.id, client.substatus)}
+                        title={client.substatus === "Inativo" ? "Reativar cliente" : "Inativar cliente"}
+                        className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-md transition-all ${
+                          client.substatus === "Inativo"
+                            ? "hover:bg-success/15 text-success"
+                            : "hover:bg-destructive/15 text-muted-foreground hover:text-destructive"
+                        }`}
+                      >
+                        {client.substatus === "Inativo" ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                      </button>
                     </td>
                   </tr>
                 );
