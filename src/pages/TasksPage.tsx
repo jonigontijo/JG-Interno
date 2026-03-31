@@ -30,10 +30,13 @@ export default function TasksPage() {
   const [showModal, setShowModal] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", clientId: "", module: "Tráfego", assignee: "", deadline: "", urgency: "normal" as Task["urgency"], description: "", recurType: undefined as any, recurUntil: "", recurDaysInterval: undefined as any });
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
   const [editTask, setEditTask] = useState<Task | null>(null);
-  const [periodFilter, setPeriodFilter] = useState<"all" | "today" | "week" | "custom">("all");
+  const [periodFilter, setPeriodFilter] = useState<"all" | "today" | "week" | "overdue" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [columnOrders, setColumnOrders] = useState<Record<string, string[]>>({});
 
   // Force re-render every 30s so elapsed time updates live
   useTimeTick(30000);
@@ -80,6 +83,13 @@ export default function TasksPage() {
     };
 
     if (periodFilter === "today") return myTasks.filter(matchesToday);
+    if (periodFilter === "overdue") {
+      return myTasks.filter(t => {
+        if (t.status === "done" || t.status === "completed") return false;
+        const dl = t.deadline?.slice(0, 10) || "";
+        return dl && dl < todayStr;
+      });
+    }
     if (periodFilter === "week") {
       const dayOfWeek = now.getDay();
       const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -107,24 +117,31 @@ export default function TasksPage() {
   const terminalStatuses = ["done", "completed", "paused", "in_progress", "approval", "waiting_client"];
 
   const getColumnTasks = (colKey: string) => {
+    let result: Task[];
     switch (colKey) {
       case "urgent":
-        return filteredTasks.filter(t => isUrgent(t) && t.status !== "done" && t.status !== "completed" && t.status !== "paused");
+        result = filteredTasks.filter(t => isUrgent(t) && t.status !== "done" && t.status !== "completed" && t.status !== "paused"); break;
       case "backlog":
-        return filteredTasks.filter(t => !isUrgent(t) && !terminalStatuses.includes(t.status));
+        result = filteredTasks.filter(t => !isUrgent(t) && !terminalStatuses.includes(t.status)); break;
       case "in_progress":
-        return filteredTasks.filter(t => t.status === "in_progress" && !isUrgent(t));
+        result = filteredTasks.filter(t => t.status === "in_progress" && !isUrgent(t)); break;
       case "paused":
-        return filteredTasks.filter(t => t.status === "paused");
+        result = filteredTasks.filter(t => t.status === "paused"); break;
       case "approval":
-        return filteredTasks.filter(t => (t.status === "approval" || t.status === "waiting_client") && !isUrgent(t));
+        result = filteredTasks.filter(t => (t.status === "approval" || t.status === "waiting_client") && !isUrgent(t)); break;
       case "done":
-        return filteredTasks.filter(t => t.status === "done");
+        result = filteredTasks.filter(t => t.status === "done"); break;
       case "completed":
-        return filteredTasks.filter(t => t.status === "completed");
+        result = filteredTasks.filter(t => t.status === "completed"); break;
       default:
-        return [];
+        result = [];
     }
+    const order = columnOrders[colKey];
+    if (order) {
+      const orderMap = new Map(order.map((id, i) => [id, i]));
+      result.sort((a, b) => (orderMap.get(a.id) ?? 9999) - (orderMap.get(b.id) ?? 9999));
+    }
+    return result;
   };
 
   const urgencyDot = (u: string) => {
@@ -183,6 +200,53 @@ export default function TasksPage() {
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
     e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleCardDragOver = (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (targetTaskId === draggedTaskId) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    setDropPosition(e.clientY < midY ? "above" : "below");
+    setDropTargetId(targetTaskId);
+  };
+
+  const handleCardDrop = (e: React.DragEvent, targetTaskId: string, colKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedTaskId || draggedTaskId === targetTaskId) {
+      setDraggedTaskId(null);
+      setDropTargetId(null);
+      return;
+    }
+
+    const draggedTask = filteredTasks.find(t => t.id === draggedTaskId);
+    const targetTask = filteredTasks.find(t => t.id === targetTaskId);
+    if (!draggedTask || !targetTask) { setDraggedTaskId(null); setDropTargetId(null); return; }
+
+    const colTasks = getColumnTasks(colKey);
+    const isSameColumn = colTasks.some(t => t.id === draggedTaskId);
+
+    if (!isSameColumn) {
+      void handleDrop(e, colKey);
+    }
+
+    const currentIds = colTasks.map(t => t.id).filter(id => id !== draggedTaskId);
+    if (!isSameColumn) currentIds.push(draggedTaskId);
+    const targetIdx = currentIds.indexOf(targetTaskId);
+    const insertIdx = dropPosition === "above" ? targetIdx : targetIdx + 1;
+    const withoutDragged = currentIds.filter(id => id !== draggedTaskId);
+    withoutDragged.splice(insertIdx > withoutDragged.length ? withoutDragged.length : insertIdx, 0, draggedTaskId);
+
+    setColumnOrders(prev => ({ ...prev, [colKey]: withoutDragged }));
+    setDraggedTaskId(null);
+    setDropTargetId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDropTargetId(null);
   };
 
   const kanbanContainerRef = React.useRef<HTMLDivElement>(null);
@@ -260,8 +324,8 @@ export default function TasksPage() {
 
       <div className="flex items-center gap-2 flex-wrap mb-4">
         <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-        {(["all", "today", "week", "custom"] as const).map(p => {
-          const label = p === "all" ? "Todas" : p === "today" ? "Hoje" : p === "week" ? "Esta semana" : "Personalizado";
+        {(["all", "today", "week", "overdue", "custom"] as const).map(p => {
+          const label = p === "all" ? "Todas" : p === "today" ? "Hoje" : p === "week" ? "Esta semana" : p === "overdue" ? "Em atraso" : "Personalizado";
           return (
             <button
               key={p}
@@ -306,12 +370,19 @@ export default function TasksPage() {
                 <div className="space-y-2 min-h-[100px]">
                   {colTasks.map(task => {
                     const elapsed = getElapsedTime(task);
+                    const isDropTarget = dropTargetId === task.id && draggedTaskId !== task.id;
                     return (
                       <div
                         key={task.id}
-                        className="kanban-card group cursor-grab active:cursor-grabbing"
+                        className={`kanban-card group cursor-grab active:cursor-grabbing relative ${
+                          isDropTarget && dropPosition === "above" ? "border-t-2 border-t-primary mt-1" : ""
+                        } ${isDropTarget && dropPosition === "below" ? "border-b-2 border-b-primary mb-1" : ""
+                        } ${draggedTaskId === task.id ? "opacity-40" : ""}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, task.id)}
+                        onDragOver={(e) => handleCardDragOver(e, task.id)}
+                        onDrop={(e) => handleCardDrop(e, task.id, col.key)}
+                        onDragEnd={handleDragEnd}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex items-center gap-1 min-w-0">

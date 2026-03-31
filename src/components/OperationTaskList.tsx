@@ -34,7 +34,7 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
 
   const [activeView, setActiveView] = useState<"mine" | "general">("mine");
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
-  const [periodFilter, setPeriodFilter] = useState<"all" | "today" | "week" | "custom">("all");
+  const [periodFilter, setPeriodFilter] = useState<"all" | "today" | "week" | "overdue" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
@@ -81,6 +81,13 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
 
     if (periodFilter === "today") {
       return baseTasks.filter(taskMatchesToday);
+    }
+    if (periodFilter === "overdue") {
+      return baseTasks.filter(t => {
+        if (t.status === "done" || t.status === "completed") return false;
+        const dl = (t.deadline || "").slice(0, 10);
+        return dl && dl < todayStr;
+      });
     }
     if (periodFilter === "week") {
       const dayOfWeek = now.getDay();
@@ -308,8 +315,8 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
       {/* Period filter */}
       <div className="flex items-center gap-2 flex-wrap">
         <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-        {(["all", "today", "week", "custom"] as const).map(p => {
-          const label = p === "all" ? "Todas" : p === "today" ? "Hoje" : p === "week" ? "Esta semana" : "Personalizado";
+        {(["all", "today", "week", "overdue", "custom"] as const).map(p => {
+          const label = p === "all" ? "Todas" : p === "today" ? "Hoje" : p === "week" ? "Esta semana" : p === "overdue" ? "Em atraso" : "Personalizado";
           return (
             <button
               key={p}
