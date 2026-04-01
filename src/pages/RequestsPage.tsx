@@ -499,6 +499,8 @@ export default function RequestsPage() {
                         dueDate: request.dueDate ? request.dueDate.slice(0, 10) : "",
                         attachments: request.attachments || [],
                         newAttachment: "",
+                        deliveryLinks: request.deliveryLinks || [],
+                        newDeliveryLink: "",
                       });
                     }}>
                       <Pencil className="w-3 h-3 mr-1" /> Editar
