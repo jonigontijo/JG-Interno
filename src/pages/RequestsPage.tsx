@@ -55,6 +55,7 @@ export default function RequestsPage() {
   const [editForm, setEditForm] = useState({
     title: "", description: "", assignedTo: "", department: "", priority: "normal" as InternalRequest["priority"],
     dueDate: "", attachments: [] as string[], newAttachment: "",
+    deliveryLinks: [] as string[], newDeliveryLink: "",
   });
   const [formData, setFormData] = useState({
     title: "",
@@ -775,6 +776,29 @@ export default function RequestsPage() {
                 </div>
               )}
 
+              {/* Documentos Concluídos */}
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-success" /> Documentos Concluídos</p>
+                {viewingRequest.deliveryLinks && viewingRequest.deliveryLinks.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {viewingRequest.deliveryLinks.map((link: string, i: number) => (
+                      <a
+                        key={i}
+                        href={link.startsWith("http") ? link : `https://${link}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-success/5 border border-success/20 text-success hover:bg-success/10 transition-colors overflow-hidden min-w-0"
+                      >
+                        <Link className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate min-w-0">{link}</span>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Nenhum documento concluído adicionado ainda</p>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-2 border-t">
                 {(viewingRequest.requesterName === currentUser?.name || currentUser?.isAdmin) && viewingRequest.status !== "completed" && (
                   <Button variant="outline" size="sm" onClick={() => {
@@ -788,6 +812,8 @@ export default function RequestsPage() {
                       dueDate: viewingRequest.dueDate ? viewingRequest.dueDate.slice(0, 10) : "",
                       attachments: viewingRequest.attachments || [],
                       newAttachment: "",
+                      deliveryLinks: viewingRequest.deliveryLinks || [],
+                      newDeliveryLink: "",
                     });
                     setViewingRequest(null);
                   }}>
@@ -892,6 +918,43 @@ export default function RequestsPage() {
                   </div>
                 )}
               </div>
+              <div>
+                <Label className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-success" /> Documentos Concluídos</Label>
+                <p className="text-[10px] text-muted-foreground mb-1.5">Links dos arquivos finalizados / editados</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={editForm.newDeliveryLink}
+                    onChange={(e) => setEditForm(f => ({ ...f, newDeliveryLink: e.target.value }))}
+                    placeholder="Cole o link do documento concluído"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && editForm.newDeliveryLink.trim()) {
+                        e.preventDefault();
+                        setEditForm(f => ({ ...f, deliveryLinks: [...f.deliveryLinks, f.newDeliveryLink.trim()], newDeliveryLink: "" }));
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => {
+                    if (editForm.newDeliveryLink.trim()) {
+                      setEditForm(f => ({ ...f, deliveryLinks: [...f.deliveryLinks, f.newDeliveryLink.trim()], newDeliveryLink: "" }));
+                    }
+                  }} disabled={!editForm.newDeliveryLink.trim()}>
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {editForm.deliveryLinks.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {editForm.deliveryLinks.map((link, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-success/10 text-success max-w-[250px]">
+                        <Link className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{link}</span>
+                        <button onClick={() => setEditForm(f => ({ ...f, deliveryLinks: f.deliveryLinks.filter((_, idx) => idx !== i) }))} className="hover:text-destructive flex-shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditingRequest(null)}>Cancelar</Button>
                 <Button onClick={() => {
@@ -906,6 +969,7 @@ export default function RequestsPage() {
                     priority: editForm.priority,
                     dueDate: editForm.dueDate || undefined,
                     attachments: editForm.attachments.length > 0 ? editForm.attachments : undefined,
+                    deliveryLinks: editForm.deliveryLinks.length > 0 ? editForm.deliveryLinks : [],
                   });
                   toast.success("Requisição atualizada!");
                   setEditingRequest(null);

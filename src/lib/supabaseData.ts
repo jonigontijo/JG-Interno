@@ -169,6 +169,7 @@ export function mapRequestFromDB(row: any): any {
     dueDate: row.due_date, taskId: row.task_id,
     redistributedTo: row.redistributed_to, redistributedBy: row.redistributed_by,
     attachments: row.attachments || [],
+    deliveryLinks: row.delivery_links || [],
   };
 }
 
@@ -182,6 +183,7 @@ export function mapRequestToDB(r: any): any {
     due_date: r.dueDate, task_id: r.taskId,
     redistributed_to: r.redistributedTo, redistributed_by: r.redistributedBy,
     attachments: r.attachments || [],
+    delivery_links: r.deliveryLinks || [],
   };
 }
 
