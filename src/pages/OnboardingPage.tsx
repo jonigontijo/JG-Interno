@@ -174,13 +174,25 @@ export default function OnboardingPage() {
             ))}
           </div>
 
-          {onboardingClients.map(client => {
+          {onboardingClients.filter(client => {
+            if (roleFilter === "all") return true;
+            const pipeline = getPipelineForClient(client.id);
+            const filteredSteps = ONBOARDING_PIPELINE.filter(matchesRoleFilter);
+            if (filteredSteps.length === 0) return false;
+            const hasRelevantPending = filteredSteps.some(step => {
+              const completed = pipeline?.completedSteps.includes(step.order);
+              return !completed;
+            });
+            return hasRelevantPending;
+          }).map(client => {
             const ob = getOnboardingData(client.id);
             const pipeline = getPipelineForClient(client.id);
             const checkedCount = checklistItems.filter(item => ob.checklist[item]).length;
             const isExpanded = expanded[client.id];
+            const filteredPipelineSteps = ONBOARDING_PIPELINE.filter(matchesRoleFilter);
             const completedSteps = pipeline?.completedSteps.length || 0;
             const totalSteps = ONBOARDING_PIPELINE.length;
+            const filteredCompleted = filteredPipelineSteps.filter(s => pipeline?.completedSteps.includes(s.order)).length;
 
             return (
               <div key={client.id} className="rounded-lg border bg-card">
@@ -194,9 +206,11 @@ export default function OnboardingPage() {
                     {pipeline && (
                       <div className="flex items-center gap-2 mt-2">
                         <div className="w-40 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(completedSteps / totalSteps) * 100}%` }} />
+                          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${roleFilter === "all" ? (completedSteps / totalSteps) * 100 : (filteredPipelineSteps.length > 0 ? (filteredCompleted / filteredPipelineSteps.length) * 100 : 0)}%` }} />
                         </div>
-                        <span className="text-[10px] font-mono text-muted-foreground">{completedSteps}/{totalSteps} etapas</span>
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {roleFilter === "all" ? `${completedSteps}/${totalSteps}` : `${filteredCompleted}/${filteredPipelineSteps.length}`} etapas
+                        </span>
                       </div>
                     )}
                   </div>

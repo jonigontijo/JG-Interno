@@ -37,28 +37,49 @@ export default function FinancialPage() {
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
 
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [paymentHistory, setPaymentHistory] = useState<Record<string, string>>({});
+
+  const isCurrentMonth = selectedMonth === currentMonth && selectedYear === currentYear;
+  const selectedYearMonth = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+  const monthLabel = new Date(selectedYear, selectedMonth).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+  useEffect(() => {
+    (supabase as any).from('payment_history').select('client_id, paid_date').eq('year_month', selectedYearMonth).then(({ data, error }: any) => {
+      if (error) { console.error('Load payment history:', error); return; }
+      const map: Record<string, string> = {};
+      (data || []).forEach((row: any) => { map[row.client_id] = row.paid_date; });
+      setPaymentHistory(map);
+    });
+  }, [selectedYearMonth]);
+
+  const isPaidInSelectedMonth = (clientId: string) => !!paymentHistory[clientId];
+
   // Financial metrics
   const mrr = clients.reduce((s, c) => s + c.monthlyValue, 0);
   const totalSetup = clients.reduce((s, c) => s + c.setupValue, 0);
   const grossRevenue = mrr + totalSetup;
 
-  // Payment tracking - calculate days overdue dynamically
+  // Payment tracking - calculate days overdue dynamically for selected month
   const clientsWithPaymentInfo = useMemo(() => {
     return clients.map(c => {
-      if (!c.paymentDueDay || c.monthlyValue === 0) return { ...c, daysOverdue: 0 };
-      if (c.isPaid) return { ...c, daysOverdue: 0 };
+      if (!c.paymentDueDay || c.monthlyValue === 0) return { ...c, paidThisMonth: false, daysOverdue: 0 };
+      const paidThisMonth = isPaidInSelectedMonth(c.id);
+      if (paidThisMonth) return { ...c, paidThisMonth, daysOverdue: 0 };
 
-      const dueDate = new Date(currentYear, currentMonth, c.paymentDueDay);
-      if (dueDate > today) return { ...c, daysOverdue: 0 };
+      const dueDate = new Date(selectedYear, selectedMonth, c.paymentDueDay);
+      const referenceDate = isCurrentMonth ? today : new Date(selectedYear, selectedMonth + 1, 0);
+      if (dueDate > referenceDate) return { ...c, paidThisMonth, daysOverdue: 0 };
 
-      const diffDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      return { ...c, daysOverdue: diffDays };
+      const diffDays = Math.floor((referenceDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...c, paidThisMonth, daysOverdue: diffDays };
     });
-  }, [clients, currentDay]);
+  }, [clients, currentDay, selectedMonth, selectedYear, paymentHistory]);
 
-  const paidClients = clientsWithPaymentInfo.filter(c => c.isPaid && c.monthlyValue > 0);
-  const unpaidClients = clientsWithPaymentInfo.filter(c => !c.isPaid && c.monthlyValue > 0);
-  const overdueClients = clientsWithPaymentInfo.filter(c => !c.isPaid && (c.daysOverdue ?? 0) > 0 && c.monthlyValue > 0);
+  const paidClients = clientsWithPaymentInfo.filter(c => c.paidThisMonth && c.monthlyValue > 0);
+  const unpaidClients = clientsWithPaymentInfo.filter(c => !c.paidThisMonth && c.monthlyValue > 0);
+  const overdueClients = clientsWithPaymentInfo.filter(c => !c.paidThisMonth && (c.daysOverdue ?? 0) > 0 && c.monthlyValue > 0);
   const barterClients = clients.filter(c => c.isBarter);
 
   const totalReceived = paidClients.reduce((s, c) => s + c.monthlyValue, 0);
@@ -165,30 +186,34 @@ export default function FinancialPage() {
   const handleTogglePaid = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    const newIsPaid = !client.isPaid;
-    const newPaidDate = newIsPaid ? new Date().toISOString().slice(0, 10) : null;
-    
-    // Update store (triggers UI)
-    updateClient(clientId, {
-      isPaid: newIsPaid,
-      paidDate: newPaidDate || undefined,
-    });
+    const currentlyPaid = isPaidInSelectedMonth(clientId);
+    const newIsPaid = !currentlyPaid;
+    const paidDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    // Also persist directly to DB for reliability
-    try {
-      const { error } = await (supabase as any).from('clients').update({
-        is_paid: newIsPaid,
-        paid_date: newPaidDate,
-      }).eq('id', clientId);
-      if (error) {
-        console.error('Erro ao salvar pagamento:', error);
-        toast.error('Erro ao salvar status de pagamento.');
-      } else {
-        toast.success(newIsPaid ? 'Marcado como pago!' : 'Pagamento desmarcado.');
-      }
-    } catch (err) {
-      console.error('Erro ao salvar pagamento:', err);
-      toast.error('Erro ao salvar status de pagamento.');
+    if (newIsPaid) {
+      setPaymentHistory(prev => ({ ...prev, [clientId]: paidDateStr }));
+      try {
+        const { error } = await (supabase as any).from('payment_history').upsert({
+          client_id: clientId,
+          year_month: selectedYearMonth,
+          paid_date: paidDateStr,
+          amount: client.monthlyValue,
+        });
+        if (error) { console.error('Erro ao salvar pagamento:', error); toast.error('Erro ao salvar.'); }
+        else toast.success('Marcado como pago!');
+      } catch (err) { console.error(err); toast.error('Erro ao salvar.'); }
+    } else {
+      setPaymentHistory(prev => { const next = { ...prev }; delete next[clientId]; return next; });
+      try {
+        const { error } = await (supabase as any).from('payment_history').delete().eq('client_id', clientId).eq('year_month', selectedYearMonth);
+        if (error) { console.error('Erro ao remover pagamento:', error); toast.error('Erro ao remover.'); }
+        else toast.success('Pagamento desmarcado.');
+      } catch (err) { console.error(err); toast.error('Erro ao remover.'); }
+    }
+
+    if (isCurrentMonth) {
+      updateClient(clientId, { isPaid: newIsPaid, paidDate: newIsPaid ? paidDateStr : undefined });
+      await (supabase as any).from('clients').update({ is_paid: newIsPaid, paid_date: newIsPaid ? paidDateStr : null }).eq('id', clientId);
     }
   };
 
@@ -271,10 +296,52 @@ export default function FinancialPage() {
             </div>
           </div>
 
+          {/* Month selector */}
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> Período de Visualização
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const prev = selectedMonth === 0 ? 11 : selectedMonth - 1;
+                    const yr = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
+                    setSelectedMonth(prev);
+                    setSelectedYear(yr);
+                  }}
+                  className="px-2 py-1 rounded border text-xs hover:bg-muted transition-colors"
+                >
+                  ←
+                </button>
+                <span className="text-sm font-medium text-foreground min-w-[140px] text-center capitalize">{monthLabel}</span>
+                <button
+                  onClick={() => {
+                    const next = selectedMonth === 11 ? 0 : selectedMonth + 1;
+                    const yr = selectedMonth === 11 ? selectedYear + 1 : selectedYear;
+                    setSelectedMonth(next);
+                    setSelectedYear(yr);
+                  }}
+                  className="px-2 py-1 rounded border text-xs hover:bg-muted transition-colors"
+                >
+                  →
+                </button>
+                {!isCurrentMonth && (
+                  <button
+                    onClick={() => { setSelectedMonth(currentMonth); setSelectedYear(currentYear); }}
+                    className="ml-2 text-[10px] px-2.5 py-1 rounded-full bg-primary/15 text-primary font-medium hover:bg-primary/25 transition-colors"
+                  >
+                    Mês atual
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Payment status table */}
           <div className="rounded-lg border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Status de Pagamento – Mês Atual</h2>
+              <h2 className="text-sm font-semibold text-foreground capitalize">Status de Pagamento – {monthLabel}</h2>
               <span className="text-xs text-muted-foreground">{paidClients.length}/{clients.filter(c => c.monthlyValue > 0).length} pagos</span>
             </div>
             <div className="overflow-x-auto">
@@ -294,19 +361,20 @@ export default function FinancialPage() {
                     .filter(c => c.monthlyValue > 0)
                     .sort((a, b) => (a.paymentDueDay || 99) - (b.paymentDueDay || 99))
                     .map(client => {
-                      const overdue = !client.isPaid && (client.daysOverdue ?? 0) > 0;
+                      const paid = client.paidThisMonth;
+                      const overdue = !paid && (client.daysOverdue ?? 0) > 0;
                       return (
-                        <tr key={client.id} className={`border-b border-border/50 transition-colors ${overdue ? "bg-destructive/5" : client.isPaid ? "bg-success/5" : "hover:bg-muted/20"}`}>
+                        <tr key={client.id} className={`border-b border-border/50 transition-colors ${overdue ? "bg-destructive/5" : paid ? "bg-success/5" : "hover:bg-muted/20"}`}>
                           <td className="py-3 px-3 text-center">
                             <Checkbox
-                              checked={!!client.isPaid}
+                              checked={!!paid}
                               onCheckedChange={() => handleTogglePaid(client.id)}
                               className="mx-auto"
                             />
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
-                              <p className={`text-sm font-medium ${client.isPaid ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                              <p className={`text-sm font-medium ${paid ? "text-muted-foreground line-through" : "text-foreground"}`}>
                                 {client.company}
                               </p>
                               {client.isBarter && (
@@ -321,7 +389,7 @@ export default function FinancialPage() {
                           </td>
                           <td className="py-3 px-4 text-sm font-mono text-foreground text-right">{formatCurrency(client.monthlyValue)}</td>
                           <td className="py-3 px-4 text-center">
-                            {client.isPaid ? (
+                            {paid ? (
                               <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Pago
                               </span>
@@ -336,13 +404,13 @@ export default function FinancialPage() {
                             )}
                           </td>
                           <td className="py-3 px-4 text-center">
-                            {client.isPaid ? (
+                            {paid ? (
                               <span className="text-xs text-success">✓</span>
                             ) : overdue ? (
                               <span className="text-xs font-bold text-destructive">{client.daysOverdue}d</span>
                             ) : (
                               <span className="text-xs text-muted-foreground">
-                                {client.paymentDueDay ? `${client.paymentDueDay - currentDay}d` : "—"}
+                                {isCurrentMonth && client.paymentDueDay ? `${client.paymentDueDay - currentDay}d` : "—"}
                               </span>
                             )}
                           </td>
