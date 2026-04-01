@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
 import { toast } from "sonner";
-import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock } from "lucide-react";
+import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock, Filter } from "lucide-react";
 
 const checklistItems = [
   "Briefing preenchido",
@@ -52,6 +52,18 @@ export default function OnboardingPage() {
   const operationClients = clients.filter(c => c.status === "Operação" && !clientPipelines.some(p => p.clientId === c.id));
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [tab, setTab] = useState<"pipeline" | "all">("pipeline");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  const uniqueRoles = Array.from(new Set(ONBOARDING_PIPELINE.map(s => s.assignRole)));
+
+  const matchesRoleFilter = (step: (typeof ONBOARDING_PIPELINE)[number]) => {
+    if (roleFilter === "all") return true;
+    if (roleFilter === "mine") {
+      const myRoles = new Set(currentUserRoles.map(r => r.trim().toLowerCase()));
+      return myRoles.has(step.assignRole.trim().toLowerCase());
+    }
+    return step.assignRole === roleFilter;
+  };
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
@@ -133,6 +145,35 @@ export default function OnboardingPage() {
 
       {tab === "pipeline" && (
         <div className="grid gap-4">
+          {/* Filtro por responsável */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground mr-1">Responsável:</span>
+            <button
+              onClick={() => setRoleFilter("all")}
+              className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${roleFilter === "all" ? "bg-primary/15 text-primary border-primary/30 font-semibold" : "text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"}`}
+            >
+              Todas
+            </button>
+            {currentUserRoles.length > 0 && (
+              <button
+                onClick={() => setRoleFilter("mine")}
+                className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${roleFilter === "mine" ? "bg-primary/15 text-primary border-primary/30 font-semibold" : "text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"}`}
+              >
+                Minhas tarefas
+              </button>
+            )}
+            {uniqueRoles.map(role => (
+              <button
+                key={role}
+                onClick={() => setRoleFilter(role)}
+                className={`text-[11px] px-3 py-1.5 rounded-full border transition-colors ${roleFilter === role ? "bg-primary/15 text-primary border-primary/30 font-semibold" : "text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"}`}
+              >
+                {role}
+              </button>
+            ))}
+          </div>
+
           {onboardingClients.map(client => {
             const ob = getOnboardingData(client.id);
             const pipeline = getPipelineForClient(client.id);
@@ -172,7 +213,7 @@ export default function OnboardingPage() {
                       <div>
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Pipeline de Onboarding</h4>
                         <div className="space-y-2">
-                          {ONBOARDING_PIPELINE.map((step) => {
+                          {ONBOARDING_PIPELINE.filter(matchesRoleFilter).map((step) => {
                             const isCompleted = pipeline.completedSteps.includes(step.order);
                             const isCurrent = pipeline.currentStepOrder === step.order && !pipeline.completedAt;
                             const isLocked = step.order > pipeline.currentStepOrder && !isCompleted;
