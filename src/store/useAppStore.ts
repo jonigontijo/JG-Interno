@@ -265,6 +265,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
       tasks: [...s.tasks, pipelineTask],
       clientPipelines: [...s.clientPipelines, pipeline],
     }));
+    // Persist pipeline, task, and client status to DB
+    db('client_pipelines').upsert({
+      client_id: pipeline.clientId, current_step_order: pipeline.currentStepOrder,
+      completed_steps: pipeline.completedSteps, started_at: pipeline.startedAt,
+    }).then(({ error }: any) => { if (error) console.error('startClientPipeline DB pipeline:', error); });
+    db('tasks').upsert(mapTaskToDB(pipelineTask)).then(({ error }: any) => {
+      if (error) console.error('startClientPipeline DB task:', error);
+    });
+    const updatedClient = get().clients.find(c => c.id === clientId);
+    if (updatedClient) {
+      db('clients').upsert(mapClientToDB(updatedClient)).then(({ error }: any) => {
+        if (error) console.error('startClientPipeline DB client:', error);
+      });
+    }
   },
   forceAdvancePipeline: (clientId) => {
     const state = get();
@@ -326,6 +340,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
           c.id === clientId ? { ...c, status: nextStep.clientStatus } : c
         ),
       }));
+      // Persist forceAdvance (next step) to DB
+      const updPipeline = get().clientPipelines.find(p => p.clientId === clientId);
+      if (updPipeline) {
+        db('client_pipelines').upsert({ client_id: clientId, current_step_order: updPipeline.currentStepOrder, completed_steps: updPipeline.completedSteps, started_at: updPipeline.startedAt, completed_at: updPipeline.completedAt || null }).then(({ error }: any) => { if (error) console.error('forceAdvance DB pipeline:', error); });
+      }
+      if (!existingNextTask) {
+        db('tasks').upsert(mapTaskToDB(nextTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB next task:', error); });
+      }
+      if (needsMarkDone) {
+        const doneTask = get().tasks.find(t => t.id === currentTaskId);
+        if (doneTask) db('tasks').upsert(mapTaskToDB(doneTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB done task:', error); });
+      }
+      const updClient = get().clients.find(c => c.id === clientId);
+      if (updClient) db('clients').upsert(mapClientToDB(updClient)).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
     } else {
       set((s) => ({
         tasks: s.tasks.map(t => {
@@ -341,6 +369,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
           c.id === clientId ? { ...c, status: "Operação", substatus: "Ativo" } : c
         ),
       }));
+      // Persist forceAdvance (completed) to DB
+      const finPipeline = get().clientPipelines.find(p => p.clientId === clientId);
+      if (finPipeline) {
+        db('client_pipelines').upsert({ client_id: clientId, current_step_order: finPipeline.currentStepOrder, completed_steps: finPipeline.completedSteps, started_at: finPipeline.startedAt, completed_at: finPipeline.completedAt || null }).then(({ error }: any) => { if (error) console.error('forceAdvance DB pipeline complete:', error); });
+      }
+      if (needsMarkDone) {
+        const doneTask = get().tasks.find(t => t.id === currentTaskId);
+        if (doneTask) db('tasks').upsert(mapTaskToDB(doneTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB done task:', error); });
+      }
+      const finClient = get().clients.find(c => c.id === clientId);
+      if (finClient) db('clients').upsert(mapClientToDB(finClient)).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
     }
   },
   updateClient: (id, data) => {
@@ -676,6 +715,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
               c.id === task.clientId ? { ...c, status: nextStep.clientStatus } : c
             ),
           }));
+          // Persist pipeline advance to DB
+          const advPipeline = get().clientPipelines.find(p => p.clientId === task.clientId);
+          if (advPipeline) {
+            db('client_pipelines').upsert({ client_id: task.clientId, current_step_order: advPipeline.currentStepOrder, completed_steps: advPipeline.completedSteps, started_at: advPipeline.startedAt, completed_at: advPipeline.completedAt || null }).then(({ error }: any) => { if (error) console.error('completeTask pipeline DB:', error); });
+          }
+          db('tasks').upsert(mapTaskToDB(nextTask)).then(({ error }: any) => { if (error) console.error('completeTask next task DB:', error); });
+          const advClient = get().clients.find(c => c.id === task.clientId);
+          if (advClient) db('clients').upsert(mapClientToDB(advClient)).then(({ error }: any) => { if (error) console.error('completeTask client DB:', error); });
         } else {
           set((s) => ({
             clientPipelines: s.clientPipelines.map(p =>
@@ -687,6 +734,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
               c.id === task.clientId ? { ...c, status: "Operação", substatus: "Ativo" } : c
             ),
           }));
+          // Persist pipeline completion to DB
+          const finPipe = get().clientPipelines.find(p => p.clientId === task.clientId);
+          if (finPipe) {
+            db('client_pipelines').upsert({ client_id: task.clientId, current_step_order: finPipe.currentStepOrder, completed_steps: finPipe.completedSteps, started_at: finPipe.startedAt, completed_at: finPipe.completedAt || null }).then(({ error }: any) => { if (error) console.error('completeTask pipeline finish DB:', error); });
+          }
+          const finCli = get().clients.find(c => c.id === task.clientId);
+          if (finCli) db('clients').upsert(mapClientToDB(finCli)).then(({ error }: any) => { if (error) console.error('completeTask client finish DB:', error); });
         }
       }
     }
