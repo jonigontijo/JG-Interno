@@ -198,7 +198,7 @@ export default function FinancialPage() {
           year_month: selectedYearMonth,
           paid_date: paidDateStr,
           amount: client.monthlyValue,
-        });
+        }, { onConflict: 'client_id,year_month' });
         if (error) { console.error('Erro ao salvar pagamento:', error); toast.error('Erro ao salvar.'); }
         else toast.success('Marcado como pago!');
       } catch (err) { console.error(err); toast.error('Erro ao salvar.'); }
