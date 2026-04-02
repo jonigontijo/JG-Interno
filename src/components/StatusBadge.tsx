@@ -46,6 +46,7 @@ const statusMap: Record<string, { class: string; label: string }> = {
   adjustment_requested: { class: "status-urgent", label: "Ajuste solicitado" },
   em_dia: { class: "status-done", label: "Em dia" },
   atrasado: { class: "status-overdue", label: "Atrasado" },
+  returned_to_sales: { class: "status-urgent", label: "Devolvido Comercial" },
 };
 
 const StatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(

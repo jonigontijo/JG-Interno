@@ -5,7 +5,8 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
 import { toast } from "sonner";
-import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock, Filter } from "lucide-react";
+import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock, Filter, RotateCcw } from "lucide-react";
+import type { Task } from "@/data/mockData";
 
 const checklistItems = [
   "Briefing preenchido",
@@ -44,15 +45,17 @@ const accessFields = [
 ];
 
 export default function OnboardingPage() {
-  const { clients, tasks, clientPipelines, startClientPipeline, forceAdvancePipeline, completeTask, startTask, updateOnboardingChecklist, updateOnboardingAccess, getOnboardingData } = useAppStore();
+  const { clients, tasks, clientPipelines, startClientPipeline, forceAdvancePipeline, completeTask, startTask, updateOnboardingChecklist, updateOnboardingAccess, getOnboardingData, addTask, updateClient } = useAppStore();
   const { currentUser } = useAuthStore();
   const currentUserRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
   const isAdmin = currentUser?.isAdmin || false;
-  const onboardingClients = clients.filter(c => c.status === "Onboarding" || c.status === "Financeiro");
+  const onboardingClients = clients.filter(c => c.status === "Onboarding" || c.status === "Financeiro" || c.status === "Devolvido Comercial");
   const operationClients = clients.filter(c => c.status === "Operação" && !clientPipelines.some(p => p.clientId === c.id));
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [tab, setTab] = useState<"pipeline" | "all">("pipeline");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [returnModal, setReturnModal] = useState<{ clientId: string; stepTitle: string } | null>(null);
+  const [returnReason, setReturnReason] = useState("");
 
   const uniqueRoles = Array.from(new Set(ONBOARDING_PIPELINE.map(s => s.assignRole)));
 
@@ -90,6 +93,38 @@ export default function OnboardingPage() {
     }
     completeTask(taskId);
     toast.success("Etapa concluída! Próxima tarefa criada automaticamente.");
+  };
+
+  const handleReturnToSales = () => {
+    if (!returnModal) return;
+    const client = clients.find(c => c.id === returnModal.clientId);
+    if (!client) return;
+
+    const now = new Date();
+    const returnTask: Task = {
+      id: `t-return-${returnModal.clientId}-${Date.now()}`,
+      title: `[Devolvido] Recontactar cliente - ${client.company}`,
+      client: client.company,
+      clientId: returnModal.clientId,
+      module: "Comercial",
+      sector: "Comercial",
+      type: "manual",
+      assignee: client.accountManager || "Joni",
+      deadline: new Date(now.getTime() + 2 * 86400000).toISOString().slice(0, 10),
+      urgency: "priority",
+      status: "pending",
+      weight: 3,
+      estimatedHours: 1,
+      hasRework: false,
+      createdAt: now.toISOString().slice(0, 10),
+      description: `Cliente devolvido pelo Financeiro na etapa "${returnModal.stepTitle}". Motivo: ${returnReason || "Não informado"}. Necessário nova abordagem/negociação.`,
+    };
+
+    addTask(returnTask);
+    updateClient(returnModal.clientId, { status: "Devolvido Comercial" });
+    toast.success(`Cliente devolvido para ${client.accountManager || "Joni"}! Tarefa criada.`);
+    setReturnModal(null);
+    setReturnReason("");
   };
 
   const getPipelineForClient = (clientId: string) => {
@@ -215,7 +250,7 @@ export default function OnboardingPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <StatusBadge status={client.status === "Onboarding" ? "kickoff_in_progress" : "kickoff_pending"} />
+                    <StatusBadge status={client.status === "Devolvido Comercial" ? "returned_to_sales" : client.status === "Onboarding" ? "kickoff_in_progress" : "kickoff_pending"} />
                     {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                   </div>
                 </button>
@@ -282,6 +317,8 @@ export default function OnboardingPage() {
                                   const canComplete = isAdmin || step.allowedRoles.some(r => normalizedCurrentRoles.has(r.trim().toLowerCase()));
                                   const isStuck = !task || task.status === "done";
 
+                                  const isFinanceiroStep = step.assignRole === "Financeiro";
+
                                   if (!canComplete) return (
                                     <span className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium cursor-not-allowed" title={`Apenas: ${step.allowedRoles.join(", ")}`}>
                                       <Lock className="w-3 h-3" /> Sem permissão
@@ -289,21 +326,43 @@ export default function OnboardingPage() {
                                   );
 
                                   if (isStuck) return (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); forceAdvancePipeline(client.id); toast.success("Etapa concluída! Pipeline avançado."); }}
-                                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-warning text-warning-foreground text-[10px] font-medium hover:bg-warning/90 transition-colors"
-                                    >
-                                      <CheckCircle className="w-3 h-3" /> Concluir Etapa
-                                    </button>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      {isFinanceiroStep && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setReturnModal({ clientId: client.id, stepTitle: step.title }); }}
+                                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20 transition-colors"
+                                          title="Devolver cliente para o comercial"
+                                        >
+                                          <RotateCcw className="w-3 h-3" /> Devolver
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); forceAdvancePipeline(client.id); toast.success("Etapa concluída! Pipeline avançado."); }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-warning text-warning-foreground text-[10px] font-medium hover:bg-warning/90 transition-colors"
+                                      >
+                                        <CheckCircle className="w-3 h-3" /> Concluir Etapa
+                                      </button>
+                                    </div>
                                   );
 
                                   return (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleCompleteStep(task.id); }}
-                                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[10px] font-medium hover:bg-primary/90 transition-colors"
-                                    >
-                                      <CheckCircle className="w-3 h-3" /> Concluir
-                                    </button>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      {isFinanceiroStep && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setReturnModal({ clientId: client.id, stepTitle: step.title }); }}
+                                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20 transition-colors"
+                                          title="Devolver cliente para o comercial"
+                                        >
+                                          <RotateCcw className="w-3 h-3" /> Devolver
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleCompleteStep(task.id); }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[10px] font-medium hover:bg-primary/90 transition-colors"
+                                      >
+                                        <CheckCircle className="w-3 h-3" /> Concluir
+                                      </button>
+                                    </div>
                                   );
                                 })()}
                                 {isCompleted && task?.completedAt && (
@@ -373,6 +432,48 @@ export default function OnboardingPage() {
           {onboardingClients.length === 0 && (
             <div className="text-center py-12 text-muted-foreground text-sm">Nenhum cliente em onboarding. Vá na aba "Iniciar Pipeline" para começar.</div>
           )}
+        </div>
+      )}
+      {/* Modal Devolver para Comercial */}
+      {returnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setReturnModal(null)}>
+          <div className="bg-card border rounded-lg shadow-xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-destructive/15 flex items-center justify-center">
+                <RotateCcw className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Devolver para Comercial</h3>
+                <p className="text-xs text-muted-foreground">
+                  {clients.find(c => c.id === returnModal.clientId)?.company} — Etapa: {returnModal.stepTitle}
+                </p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">Motivo da devolução</label>
+              <textarea
+                autoFocus
+                value={returnReason}
+                onChange={e => setReturnReason(e.target.value)}
+                placeholder="Ex: Cliente quer renegociar valores, não respondeu sobre assinatura..."
+                className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground h-24 resize-none"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Uma tarefa será criada para <strong>{clients.find(c => c.id === returnModal.clientId)?.accountManager || "Joni"}</strong> recontactar o cliente. O pipeline ficará pausado até a situação ser resolvida.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => { setReturnModal(null); setReturnReason(""); }} className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={handleReturnToSales}
+                className="px-4 py-2 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
+              >
+                Devolver para Comercial
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
