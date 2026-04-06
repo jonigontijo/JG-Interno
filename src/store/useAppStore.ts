@@ -213,6 +213,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }).then(({ error }: any) => {
       if (error) console.error('Direct addClient pipeline DB write failed:', error);
     });
+    // Webhook: novo cliente
+    fetch('https://webhooks.techjg.com.br/webhook/clienteNovo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: newClient.id,
+        company: newClient.company,
+        name: newClient.name,
+        services: newClient.services,
+        monthlyValue: newClient.monthlyValue,
+        paymentDueDay: newClient.paymentDueDay,
+        accountManager: newClient.accountManager,
+        status: newClient.status,
+        createdAt: now.toISOString(),
+      }),
+    }).catch(err => console.error('Webhook clienteNovo failed:', err));
   },
   startClientPipeline: (clientId) => {
     const state = get();
