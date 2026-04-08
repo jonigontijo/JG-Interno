@@ -117,7 +117,7 @@ export default function OnboardingPage() {
       estimatedHours: 1,
       hasRework: false,
       createdAt: now.toISOString().slice(0, 10),
-      description: `Cliente devolvido pelo Financeiro na etapa "${returnModal.stepTitle}". Motivo: ${returnReason || "Não informado"}. Necessário nova abordagem/negociação.`,
+      description: `Cliente devolvido na etapa "${returnModal.stepTitle}". Motivo: ${returnReason || "Não informado"}. Necessário nova abordagem/negociação.`,
     };
 
     addTask(returnTask);
@@ -317,8 +317,6 @@ export default function OnboardingPage() {
                                   const canComplete = isAdmin || step.allowedRoles.some(r => normalizedCurrentRoles.has(r.trim().toLowerCase()));
                                   const isStuck = !task || task.status === "done";
 
-                                  const isFinanceiroStep = step.assignRole === "Financeiro";
-
                                   if (!canComplete) return (
                                     <span className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium cursor-not-allowed" title={`Apenas: ${step.allowedRoles.join(", ")}`}>
                                       <Lock className="w-3 h-3" /> Sem permissão
@@ -327,15 +325,13 @@ export default function OnboardingPage() {
 
                                   if (isStuck) return (
                                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      {isFinanceiroStep && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setReturnModal({ clientId: client.id, stepTitle: step.title }); }}
-                                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20 transition-colors"
-                                          title="Devolver cliente para o comercial"
-                                        >
-                                          <RotateCcw className="w-3 h-3" /> Devolver
-                                        </button>
-                                      )}
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setReturnModal({ clientId: client.id, stepTitle: step.title }); }}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20 transition-colors"
+                                        title="Devolver cliente para o comercial"
+                                      >
+                                        <RotateCcw className="w-3 h-3" /> Devolver
+                                      </button>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); forceAdvancePipeline(client.id); toast.success("Etapa concluída! Pipeline avançado."); }}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-warning text-warning-foreground text-[10px] font-medium hover:bg-warning/90 transition-colors"
@@ -347,15 +343,13 @@ export default function OnboardingPage() {
 
                                   return (
                                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      {isFinanceiroStep && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setReturnModal({ clientId: client.id, stepTitle: step.title }); }}
-                                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20 transition-colors"
-                                          title="Devolver cliente para o comercial"
-                                        >
-                                          <RotateCcw className="w-3 h-3" /> Devolver
-                                        </button>
-                                      )}
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setReturnModal({ clientId: client.id, stepTitle: step.title }); }}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20 transition-colors"
+                                        title="Devolver cliente para o comercial"
+                                      >
+                                        <RotateCcw className="w-3 h-3" /> Devolver
+                                      </button>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); handleCompleteStep(task.id); }}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[10px] font-medium hover:bg-primary/90 transition-colors"
