@@ -7,8 +7,10 @@ import {
   Briefcase, Megaphone, Palette, Monitor, Phone, CheckCircle,
   Wrench, RefreshCw, Bot, BarChart3, Activity, TrendingUp,
   Shield, ClipboardList, ChevronDown, ChevronRight, Zap, Calendar,
-  Settings, Menu, X, LogOut, Send, HelpCircle, KeyRound, Eye, EyeOff, Mail
+  Settings, Menu, X, LogOut, Send, HelpCircle, KeyRound, Eye, EyeOff, Mail,
+  Sun, Moon, Laptop
 } from "lucide-react";
+import { useTheme, type Theme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import Modal from "@/components/Modal";
@@ -104,6 +106,7 @@ export default function AppSidebar() {
   const [showPw, setShowPw] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState(currentUser?.recoveryEmail || "");
   const [savingEmail, setSavingEmail] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const handleChangePassword = async () => {
     if (!pwForm.newPw || pwForm.newPw.length < 6) { toast.error("Senha deve ter no mínimo 6 caracteres"); return; }
@@ -207,6 +210,30 @@ export default function AppSidebar() {
           );
         })}
       </nav>
+
+      <div className="border-t border-sidebar-border px-3 py-2">
+        <div className="flex items-center justify-center gap-1 p-0.5 rounded-lg bg-muted/50">
+          {([
+            { value: "light" as Theme, icon: Sun, label: "Claro" },
+            { value: "dark" as Theme, icon: Moon, label: "Escuro" },
+            { value: "system" as Theme, icon: Laptop, label: "Sistema" },
+          ]).map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setTheme(opt.value)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors flex-1 justify-center ${
+                theme === opt.value
+                  ? "bg-primary/15 text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title={opt.label}
+            >
+              <opt.icon className="w-3 h-3" />
+              <span>{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-2">
