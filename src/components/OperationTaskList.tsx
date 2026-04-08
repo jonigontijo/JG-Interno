@@ -9,6 +9,7 @@ import {
   User, Users as UsersIcon, Pause, List, LayoutGrid, Calendar, Filter
 } from "lucide-react";
 import type { Task } from "@/data/mockData";
+import { formatDeadline, deadlineColor } from "@/lib/formatDeadline";
 
 function toYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -212,8 +213,14 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {t.client} · {t.assignee} · {t.deadline}
+            <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 flex-wrap">
+              <span>{t.client} · {t.assignee}</span>
+              <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                deadlineColor(t.deadline) === "text-destructive" ? "bg-destructive/15 text-destructive" :
+                deadlineColor(t.deadline) === "text-warning" ? "bg-warning/15 text-warning" :
+                deadlineColor(t.deadline) === "text-info" ? "bg-info/15 text-info" :
+                "bg-muted text-muted-foreground"
+              }`}>📅 {formatDeadline(t.deadline)}</span>
             </p>
             {elapsed && (
               <div className="flex items-center gap-1 text-[10px] mt-1">

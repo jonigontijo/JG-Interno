@@ -11,6 +11,7 @@ import { formatTime } from "@/data/mockData";
 import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat, Filter } from "lucide-react";
 import { useTimeTick } from "@/hooks/useTimeTick";
 import type { Task } from "@/data/mockData";
+import { formatDeadline, deadlineColor } from "@/lib/formatDeadline";
 
 const kanbanColumns = [
   { key: "urgent", label: "Urgente" },
@@ -423,7 +424,14 @@ export default function TasksPage() {
                             <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">
                               {task.assignee.slice(0, 2).toUpperCase()}
                             </div>
-                            <span className="text-[10px] font-mono text-muted-foreground">{task.deadline.slice(5)}</span>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                              deadlineColor(task.deadline) === "text-destructive" ? "bg-destructive/15 text-destructive" :
+                              deadlineColor(task.deadline) === "text-warning" ? "bg-warning/15 text-warning" :
+                              deadlineColor(task.deadline) === "text-info" ? "bg-info/15 text-info" :
+                              "bg-muted text-muted-foreground"
+                            }`}>
+                              📅 {formatDeadline(task.deadline)}
+                            </span>
                           </div>
                         </div>
                         {task.hasRework && <span className="text-[9px] text-destructive mt-1 block">⟲ Retrabalho</span>}
@@ -498,7 +506,14 @@ export default function TasksPage() {
                     <td className="py-3 px-4 text-sm text-muted-foreground">{task.client}</td>
                     <td className="py-3 px-4"><span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{task.module}</span></td>
                     <td className="py-3 px-4 text-sm text-muted-foreground">{task.assignee}</td>
-                    <td className="py-3 px-4 text-xs font-mono text-muted-foreground">{task.deadline}</td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded ${
+                        deadlineColor(task.deadline) === "text-destructive" ? "bg-destructive/15 text-destructive" :
+                        deadlineColor(task.deadline) === "text-warning" ? "bg-warning/15 text-warning" :
+                        deadlineColor(task.deadline) === "text-info" ? "bg-info/15 text-info" :
+                        "bg-muted text-muted-foreground"
+                      }`}>📅 {formatDeadline(task.deadline)}</span>
+                    </td>
                     <td className="py-3 px-4 text-xs font-mono text-muted-foreground">{elapsed || "—"}</td>
                     <td className="py-3 px-4"><StatusBadge status={task.status} /></td>
                     <td className="py-3 px-4">
