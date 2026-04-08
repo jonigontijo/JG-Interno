@@ -115,6 +115,7 @@ export interface AppState {
   removeClient: (id: string) => void;
   startClientPipeline: (clientId: string) => void;
   forceAdvancePipeline: (clientId: string) => void;
+  resetPipeline: (clientId: string) => void;
 
   assignTeamMemberToClient: (clientId: string, assignment: ClientTeamAssignment) => void;
   removeTeamMemberFromClient: (clientId: string, memberId: string) => void;

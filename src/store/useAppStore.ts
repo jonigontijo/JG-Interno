@@ -296,6 +296,65 @@ export const useAppStore = create<AppState>()((set, get) => ({
       });
     }
   },
+  resetPipeline: (clientId) => {
+    const state = get();
+    const pipeline = state.clientPipelines.find(p => p.clientId === clientId);
+    if (!pipeline) return;
+    const client = state.clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const firstStep = ONBOARDING_PIPELINE[0];
+    const team = state.team;
+    const findByRole = (role: string) =>
+      team.find(m => m.role.toLowerCase().includes(role.toLowerCase()) || m.roles.some(r => r.toLowerCase().includes(role.toLowerCase())));
+    const assignee = findByRole(firstStep.assignRole);
+    const now = new Date();
+    const deadline = new Date(now.getTime() + firstStep.deadlineDays * 86400000);
+
+    const pipelineTask: Task = {
+      id: `t-pipe-${clientId}-${firstStep.order}`,
+      title: `[Onboarding] ${firstStep.title}`,
+      client: client.company,
+      clientId,
+      module: firstStep.module,
+      sector: "Onboarding",
+      type: "pipeline",
+      assignee: assignee?.name || "Não atribuído",
+      deadline: deadline.toISOString().slice(0, 10),
+      urgency: "priority",
+      status: "pending",
+      weight: 3,
+      estimatedHours: firstStep.estimatedHours,
+      hasRework: false,
+      createdAt: now.toISOString().slice(0, 10),
+    };
+
+    const oldTaskIds = ONBOARDING_PIPELINE.map(s => `t-pipe-${clientId}-${s.order}`);
+
+    set((s) => ({
+      clients: s.clients.map(c => c.id === clientId ? { ...c, status: firstStep.clientStatus } : c),
+      tasks: [...s.tasks.filter(t => !oldTaskIds.includes(t.id)), pipelineTask],
+      clientPipelines: s.clientPipelines.map(p => p.clientId === clientId ? {
+        ...p, currentStepOrder: 1, completedSteps: [], completedAt: undefined, startedAt: now.toISOString(),
+      } : p),
+    }));
+
+    db('client_pipelines').upsert({
+      client_id: clientId, current_step_order: 1,
+      completed_steps: [], started_at: now.toISOString(), completed_at: null,
+    }).then(({ error }: any) => { if (error) console.error('resetPipeline DB pipeline:', error); });
+
+    oldTaskIds.forEach(tid => {
+      db('tasks').delete().eq('id', tid).then(({ error }: any) => { if (error) console.error('resetPipeline DB delete task:', error); });
+    });
+    db('tasks').upsert(mapTaskToDB(pipelineTask)).then(({ error }: any) => { if (error) console.error('resetPipeline DB new task:', error); });
+
+    const updatedClient = get().clients.find(c => c.id === clientId);
+    if (updatedClient) {
+      db('clients').upsert(mapClientToDB(updatedClient)).then(({ error }: any) => { if (error) console.error('resetPipeline DB client:', error); });
+    }
+  },
+
   forceAdvancePipeline: (clientId) => {
     const state = get();
     const pipeline = state.clientPipelines.find(p => p.clientId === clientId);

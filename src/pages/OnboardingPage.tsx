@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
 import { toast } from "sonner";
-import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock, Filter, RotateCcw } from "lucide-react";
+import { CheckCircle, Circle, ChevronDown, ChevronRight, Play, Clock, User, Rocket, Lock, Filter, RotateCcw, RefreshCcw } from "lucide-react";
 import type { Task } from "@/data/mockData";
 
 const checklistItems = [
@@ -45,7 +45,7 @@ const accessFields = [
 ];
 
 export default function OnboardingPage() {
-  const { clients, tasks, clientPipelines, startClientPipeline, forceAdvancePipeline, completeTask, startTask, updateOnboardingChecklist, updateOnboardingAccess, getOnboardingData, addTask, updateClient } = useAppStore();
+  const { clients, tasks, clientPipelines, startClientPipeline, forceAdvancePipeline, resetPipeline, completeTask, startTask, updateOnboardingChecklist, updateOnboardingAccess, getOnboardingData, addTask, updateClient } = useAppStore();
   const { currentUser } = useAuthStore();
   const currentUserRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
   const isAdmin = currentUser?.isAdmin || false;
@@ -56,6 +56,7 @@ export default function OnboardingPage() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [returnModal, setReturnModal] = useState<{ clientId: string; stepTitle: string } | null>(null);
   const [returnReason, setReturnReason] = useState("");
+  const [resetConfirm, setResetConfirm] = useState<string | null>(null);
 
   const uniqueRoles = Array.from(new Set(ONBOARDING_PIPELINE.map(s => s.assignRole)));
 
@@ -260,7 +261,16 @@ export default function OnboardingPage() {
                     {/* Pipeline Steps */}
                     {pipeline && (
                       <div>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Pipeline de Onboarding</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pipeline de Onboarding</h4>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setResetConfirm(client.id); }}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-warning/10 text-warning text-[10px] font-medium hover:bg-warning/20 transition-colors"
+                            title="Resetar onboarding do cliente"
+                          >
+                            <RefreshCcw className="w-3 h-3" /> Resetar Onboarding
+                          </button>
+                        </div>
                         <div className="space-y-2">
                           {ONBOARDING_PIPELINE.filter(matchesRoleFilter).map((step) => {
                             const isCompleted = pipeline.completedSteps.includes(step.order);
@@ -465,6 +475,42 @@ export default function OnboardingPage() {
                 className="px-4 py-2 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
               >
                 Devolver para Comercial
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Confirmar Reset */}
+      {resetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setResetConfirm(null)}>
+          <div className="bg-card border rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                <RefreshCcw className="w-5 h-5 text-warning" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Resetar Onboarding</h3>
+                <p className="text-xs text-muted-foreground">
+                  {clients.find(c => c.id === resetConfirm)?.company}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Todas as etapas concluídas serão apagadas e o onboarding voltará para a <strong>etapa 1</strong>. Tem certeza?
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setResetConfirm(null)} className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  resetPipeline(resetConfirm);
+                  toast.success("Onboarding resetado! Voltou para a etapa 1.");
+                  setResetConfirm(null);
+                }}
+                className="px-4 py-2 rounded-md bg-warning text-warning-foreground text-sm font-medium hover:bg-warning/90 transition-colors"
+              >
+                Confirmar Reset
               </button>
             </div>
           </div>
