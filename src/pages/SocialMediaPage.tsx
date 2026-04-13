@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
 import Modal from "@/components/Modal";
@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   Plus, Calendar as CalendarIcon, Film, CheckCircle, AlertTriangle, FileText,
   ChevronLeft, ChevronRight, Bell, Users, BarChart3, HandHelping, Eye, Upload,
-  MessageCircle, ExternalLink, X
+  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw
 } from "lucide-react";
 import OperationTaskList from "@/components/OperationTaskList";
 import { Calendar } from "@/components/ui/calendar";
@@ -20,6 +20,26 @@ import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Task } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
+
+interface ClientBriefing {
+  id: string;
+  client_name: string;
+  client_email: string | null;
+  phone: string | null;
+  company: string | null;
+  business_type: string | null;
+  target_audience: string | null;
+  main_goals: string | null;
+  brand_colors: string | null;
+  brand_tone: string | null;
+  competitors: string | null;
+  social_platforms: string[] | null;
+  content_preferences: string | null;
+  additional_notes: string | null;
+  status: string;
+  created_at: string;
+}
 
 const postStatuses = ["Pauta", "Roteiro", "Gravação", "Edição", "Design", "Aprovação", "Aprovado", "Publicado"];
 
@@ -57,12 +77,89 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"tasks" | "calendar">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "briefings">("tasks");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadClientId, setUploadClientId] = useState<string | null>(null);
+
+  const [briefings, setBriefings] = useState<ClientBriefing[]>([]);
+  const [briefingsLoading, setBriefingsLoading] = useState(false);
+  const [selectedBriefing, setSelectedBriefing] = useState<ClientBriefing | null>(null);
+  const [briefingSearch, setBriefingSearch] = useState("");
+
+  const loadBriefings = async () => {
+    setBriefingsLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("client_briefings")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setBriefings(data || []);
+    } catch (err: any) {
+      toast.error("Erro ao carregar briefings: " + err.message);
+    } finally {
+      setBriefingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "briefings") {
+      loadBriefings();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("briefings-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "client_briefings" }, () => {
+        if (activeTab === "briefings") loadBriefings();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeTab]);
+
+  const updateBriefingStatus = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from("client_briefings")
+        .update({ status: newStatus })
+        .eq("id", id);
+      if (error) throw error;
+      setBriefings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
+      if (selectedBriefing?.id === id) setSelectedBriefing(prev => prev ? { ...prev, status: newStatus } : null);
+      toast.success(`Status atualizado para "${newStatus}"`);
+    } catch (err: any) {
+      toast.error("Erro ao atualizar status: " + err.message);
+    }
+  };
+
+  const deleteBriefing = async (id: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from("client_briefings")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      setBriefings(prev => prev.filter(b => b.id !== id));
+      setSelectedBriefing(null);
+      toast.success("Briefing excluído");
+    } catch (err: any) {
+      toast.error("Erro ao excluir: " + err.message);
+    }
+  };
+
+  const filteredBriefings = useMemo(() => {
+    if (!briefingSearch.trim()) return briefings;
+    const q = briefingSearch.toLowerCase();
+    return briefings.filter(b =>
+      b.client_name.toLowerCase().includes(q) ||
+      (b.company && b.company.toLowerCase().includes(q)) ||
+      (b.client_email && b.client_email.toLowerCase().includes(q))
+    );
+  }, [briefings, briefingSearch]);
 
   // Karen (Social Media Coordinator) or admin sees all; others see only their clients
   const isCoordinator = currentUser?.role === "Social Media - Coordenação" || currentUser?.isAdmin;
@@ -226,6 +323,7 @@ export default function SocialMediaPage() {
   const tabs = [
     { key: "tasks", label: "Tarefas", icon: FileText },
     { key: "calendar", label: "Calendário de Gravações", icon: CalendarIcon },
+    { key: "briefings", label: "Briefing Clientes", icon: ClipboardList },
   ];
 
   return (
@@ -397,6 +495,237 @@ export default function SocialMediaPage() {
         </div>
       )}
 
+
+      {/* Briefing Clientes Tab */}
+      {activeTab === "briefings" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={briefingSearch}
+                onChange={(e) => setBriefingSearch(e.target.value)}
+                placeholder="Buscar por nome, empresa ou email..."
+                className="w-full pl-9 pr-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+            <button
+              onClick={loadBriefings}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <RefreshCw className={cn("w-4 h-4", briefingsLoading && "animate-spin")} /> Atualizar
+            </button>
+          </div>
+
+          {briefingsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredBriefings.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Nenhum briefing recebido</p>
+              <p className="text-xs mt-1">Os briefings enviados via formulário aparecerão aqui</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Cliente</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Empresa</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Email</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Recebido em</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredBriefings.map((briefing) => (
+                    <tr key={briefing.id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 text-sm text-foreground font-medium">{briefing.client_name}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{briefing.company || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{briefing.client_email || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                          briefing.status === "pending" && "bg-warning/15 text-warning",
+                          briefing.status === "reviewed" && "bg-primary/15 text-primary",
+                          briefing.status === "approved" && "bg-success/15 text-success",
+                          briefing.status === "archived" && "bg-muted text-muted-foreground"
+                        )}>
+                          {briefing.status === "pending" ? "Pendente" :
+                           briefing.status === "reviewed" ? "Revisado" :
+                           briefing.status === "approved" ? "Aprovado" :
+                           briefing.status === "archived" ? "Arquivado" : briefing.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {format(new Date(briefing.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setSelectedBriefing(briefing)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Ver detalhes"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm("Excluir este briefing?")) deleteBriefing(briefing.id);
+                            }}
+                            className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Briefing Detail Modal */}
+      {selectedBriefing && (
+        <Modal open={!!selectedBriefing} onClose={() => setSelectedBriefing(null)} title={`Briefing - ${selectedBriefing.client_name}`}>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <span className={cn(
+                "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                selectedBriefing.status === "pending" && "bg-warning/15 text-warning",
+                selectedBriefing.status === "reviewed" && "bg-primary/15 text-primary",
+                selectedBriefing.status === "approved" && "bg-success/15 text-success",
+                selectedBriefing.status === "archived" && "bg-muted text-muted-foreground"
+              )}>
+                {selectedBriefing.status === "pending" ? "Pendente" :
+                 selectedBriefing.status === "reviewed" ? "Revisado" :
+                 selectedBriefing.status === "approved" ? "Aprovado" :
+                 selectedBriefing.status === "archived" ? "Arquivado" : selectedBriefing.status}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                Recebido em {format(new Date(selectedBriefing.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Nome do Cliente</p>
+                <p className="text-sm text-foreground font-medium">{selectedBriefing.client_name}</p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Empresa</p>
+                <p className="text-sm text-foreground font-medium">{selectedBriefing.company || "—"}</p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Email</p>
+                <p className="text-sm text-foreground">{selectedBriefing.client_email || "—"}</p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Telefone</p>
+                <p className="text-sm text-foreground">{selectedBriefing.phone || "—"}</p>
+              </div>
+            </div>
+
+            {selectedBriefing.business_type && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Tipo de Negócio</p>
+                <p className="text-sm text-foreground">{selectedBriefing.business_type}</p>
+              </div>
+            )}
+
+            {selectedBriefing.target_audience && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Público-Alvo</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.target_audience}</p>
+              </div>
+            )}
+
+            {selectedBriefing.main_goals && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Objetivos Principais</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.main_goals}</p>
+              </div>
+            )}
+
+            {selectedBriefing.brand_colors && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Cores da Marca</p>
+                <p className="text-sm text-foreground">{selectedBriefing.brand_colors}</p>
+              </div>
+            )}
+
+            {selectedBriefing.brand_tone && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Tom de Voz</p>
+                <p className="text-sm text-foreground">{selectedBriefing.brand_tone}</p>
+              </div>
+            )}
+
+            {selectedBriefing.competitors && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Concorrentes</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.competitors}</p>
+              </div>
+            )}
+
+            {selectedBriefing.social_platforms && selectedBriefing.social_platforms.length > 0 && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-1.5">Plataformas Sociais</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedBriefing.social_platforms.map((p, i) => (
+                    <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedBriefing.content_preferences && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Preferências de Conteúdo</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.content_preferences}</p>
+              </div>
+            )}
+
+            {selectedBriefing.additional_notes && (
+              <div className="p-3 rounded-md border bg-muted/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Observações Adicionais</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.additional_notes}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-between pt-3 border-t">
+              <div className="flex gap-1.5">
+                {selectedBriefing.status !== "reviewed" && (
+                  <button onClick={() => updateBriefingStatus(selectedBriefing.id, "reviewed")} className="px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
+                    Marcar Revisado
+                  </button>
+                )}
+                {selectedBriefing.status !== "approved" && (
+                  <button onClick={() => updateBriefingStatus(selectedBriefing.id, "approved")} className="px-3 py-1.5 rounded-md bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors">
+                    Aprovar
+                  </button>
+                )}
+                {selectedBriefing.status !== "archived" && (
+                  <button onClick={() => updateBriefingStatus(selectedBriefing.id, "archived")} className="px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
+                    Arquivar
+                  </button>
+                )}
+              </div>
+              <button onClick={() => setSelectedBriefing(null)} className="px-4 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Client Detail Modal */}
       {selectedClientId && (() => {

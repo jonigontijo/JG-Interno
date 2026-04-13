@@ -12,6 +12,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_briefings: {
+        Row: {
+          id: string
+          client_name: string
+          client_email: string | null
+          phone: string | null
+          company: string | null
+          business_type: string | null
+          target_audience: string | null
+          main_goals: string | null
+          brand_colors: string | null
+          brand_tone: string | null
+          competitors: string | null
+          social_platforms: string[] | null
+          content_preferences: string | null
+          additional_notes: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          client_name: string
+          client_email?: string | null
+          phone?: string | null
+          company?: string | null
+          business_type?: string | null
+          target_audience?: string | null
+          main_goals?: string | null
+          brand_colors?: string | null
+          brand_tone?: string | null
+          competitors?: string | null
+          social_platforms?: string[] | null
+          content_preferences?: string | null
+          additional_notes?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          client_name?: string
+          client_email?: string | null
+          phone?: string | null
+          company?: string | null
+          business_type?: string | null
+          target_audience?: string | null
+          main_goals?: string | null
+          brand_colors?: string | null
+          brand_tone?: string | null
+          competitors?: string | null
+          social_platforms?: string[] | null
+          content_preferences?: string | null
+          additional_notes?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
