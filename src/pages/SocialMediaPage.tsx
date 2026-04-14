@@ -24,19 +24,33 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ClientBriefing {
   id: string;
-  client_name: string;
-  client_email: string | null;
-  phone: string | null;
-  company: string | null;
-  business_type: string | null;
-  target_audience: string | null;
-  main_goals: string | null;
-  brand_colors: string | null;
-  brand_tone: string | null;
-  competitors: string | null;
-  social_platforms: string[] | null;
-  content_preferences: string | null;
-  additional_notes: string | null;
+  nome_marca: string;
+  site_link: string | null;
+  historia_marca: string | null;
+  produtos_servicos: string | null;
+  diferenciais: string | null;
+  dores_resultados: string | null;
+  perfil_cliente_atual: string | null;
+  cliente_ideal: string | null;
+  meta_principal: string | null;
+  acao_desejada: string | null;
+  metrica_36meses: string | null;
+  percepcao_marca: string | null;
+  tom_de_voz: string | null;
+  referencia_conteudo: string | null;
+  estilo_nao_gosta: string | null;
+  fotos_link: string | null;
+  videos_link: string | null;
+  disponibilidade_gravacao: string | null;
+  estilo_video: string | null;
+  escopo_entrega: string | null;
+  objetivo_mes: string | null;
+  foco_15dias: string | null;
+  duvida_cliente: string | null;
+  objetivo_cliente: string | null;
+  links_videos_referencia: string | null;
+  comunicacao_videos: string | null;
+  restricoes: string | null;
   status: string;
   created_at: string;
 }
@@ -155,9 +169,9 @@ export default function SocialMediaPage() {
     if (!briefingSearch.trim()) return briefings;
     const q = briefingSearch.toLowerCase();
     return briefings.filter(b =>
-      b.client_name.toLowerCase().includes(q) ||
-      (b.company && b.company.toLowerCase().includes(q)) ||
-      (b.client_email && b.client_email.toLowerCase().includes(q))
+      b.nome_marca.toLowerCase().includes(q) ||
+      (b.meta_principal && b.meta_principal.toLowerCase().includes(q)) ||
+      (b.objetivo_mes && b.objetivo_mes.toLowerCase().includes(q))
     );
   }, [briefings, briefingSearch]);
 
@@ -533,9 +547,9 @@ export default function SocialMediaPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Cliente</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Empresa</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Email</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Marca</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Meta Principal</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Objetivo do Mês</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Recebido em</th>
                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Ações</th>
@@ -544,9 +558,9 @@ export default function SocialMediaPage() {
                 <tbody>
                   {filteredBriefings.map((briefing) => (
                     <tr key={briefing.id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 text-sm text-foreground font-medium">{briefing.client_name}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{briefing.company || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{briefing.client_email || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-foreground font-medium">{briefing.nome_marca}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px] truncate">{briefing.meta_principal || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px] truncate">{briefing.objetivo_mes || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={cn(
                           "text-[10px] px-2 py-0.5 rounded-full font-medium",
@@ -594,138 +608,98 @@ export default function SocialMediaPage() {
       )}
 
       {/* Briefing Detail Modal */}
-      {selectedBriefing && (
-        <Modal open={!!selectedBriefing} onClose={() => setSelectedBriefing(null)} title={`Briefing - ${selectedBriefing.client_name}`}>
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={cn(
-                "text-[10px] px-2 py-0.5 rounded-full font-medium",
-                selectedBriefing.status === "pending" && "bg-warning/15 text-warning",
-                selectedBriefing.status === "reviewed" && "bg-primary/15 text-primary",
-                selectedBriefing.status === "approved" && "bg-success/15 text-success",
-                selectedBriefing.status === "archived" && "bg-muted text-muted-foreground"
-              )}>
-                {selectedBriefing.status === "pending" ? "Pendente" :
-                 selectedBriefing.status === "reviewed" ? "Revisado" :
-                 selectedBriefing.status === "approved" ? "Aprovado" :
-                 selectedBriefing.status === "archived" ? "Arquivado" : selectedBriefing.status}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                Recebido em {format(new Date(selectedBriefing.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-              </span>
-            </div>
+      {selectedBriefing && (() => {
+        const fields: { label: string; value: string | null; isLink?: boolean }[] = [
+          { label: "Nome da Marca", value: selectedBriefing.nome_marca },
+          { label: "Site", value: selectedBriefing.site_link, isLink: true },
+          { label: "História da Marca", value: selectedBriefing.historia_marca },
+          { label: "Produtos / Serviços", value: selectedBriefing.produtos_servicos },
+          { label: "Diferenciais", value: selectedBriefing.diferenciais },
+          { label: "Dores e Resultados", value: selectedBriefing.dores_resultados },
+          { label: "Perfil do Cliente Atual", value: selectedBriefing.perfil_cliente_atual },
+          { label: "Cliente Ideal", value: selectedBriefing.cliente_ideal },
+          { label: "Meta Principal", value: selectedBriefing.meta_principal },
+          { label: "Ação Desejada", value: selectedBriefing.acao_desejada },
+          { label: "Métrica 36 Meses", value: selectedBriefing.metrica_36meses },
+          { label: "Percepção da Marca", value: selectedBriefing.percepcao_marca },
+          { label: "Tom de Voz", value: selectedBriefing.tom_de_voz },
+          { label: "Referência de Conteúdo", value: selectedBriefing.referencia_conteudo },
+          { label: "Estilo que Não Gosta", value: selectedBriefing.estilo_nao_gosta },
+          { label: "Link das Fotos", value: selectedBriefing.fotos_link, isLink: true },
+          { label: "Link dos Vídeos", value: selectedBriefing.videos_link, isLink: true },
+          { label: "Disponibilidade para Gravação", value: selectedBriefing.disponibilidade_gravacao },
+          { label: "Estilo de Vídeo", value: selectedBriefing.estilo_video },
+          { label: "Escopo de Entrega", value: selectedBriefing.escopo_entrega },
+          { label: "Objetivo do Mês", value: selectedBriefing.objetivo_mes },
+          { label: "Foco 15 Dias", value: selectedBriefing.foco_15dias },
+          { label: "Dúvida do Cliente", value: selectedBriefing.duvida_cliente },
+          { label: "Objetivo do Cliente", value: selectedBriefing.objetivo_cliente },
+          { label: "Links Vídeos Referência", value: selectedBriefing.links_videos_referencia, isLink: true },
+          { label: "Comunicação dos Vídeos", value: selectedBriefing.comunicacao_videos },
+          { label: "Restrições", value: selectedBriefing.restricoes },
+        ];
+        const filledFields = fields.filter(f => f.value && f.value.trim());
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Nome do Cliente</p>
-                <p className="text-sm text-foreground font-medium">{selectedBriefing.client_name}</p>
+        return (
+          <Modal open={!!selectedBriefing} onClose={() => setSelectedBriefing(null)} title={`Briefing - ${selectedBriefing.nome_marca}`}>
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center gap-2 mb-2">
+                <span className={cn(
+                  "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                  selectedBriefing.status === "pending" && "bg-warning/15 text-warning",
+                  selectedBriefing.status === "reviewed" && "bg-primary/15 text-primary",
+                  selectedBriefing.status === "approved" && "bg-success/15 text-success",
+                  selectedBriefing.status === "archived" && "bg-muted text-muted-foreground"
+                )}>
+                  {selectedBriefing.status === "pending" ? "Pendente" :
+                   selectedBriefing.status === "reviewed" ? "Revisado" :
+                   selectedBriefing.status === "approved" ? "Aprovado" :
+                   selectedBriefing.status === "archived" ? "Arquivado" : selectedBriefing.status}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  Recebido em {format(new Date(selectedBriefing.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </span>
               </div>
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Empresa</p>
-                <p className="text-sm text-foreground font-medium">{selectedBriefing.company || "—"}</p>
-              </div>
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Email</p>
-                <p className="text-sm text-foreground">{selectedBriefing.client_email || "—"}</p>
-              </div>
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Telefone</p>
-                <p className="text-sm text-foreground">{selectedBriefing.phone || "—"}</p>
-              </div>
-            </div>
 
-            {selectedBriefing.business_type && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Tipo de Negócio</p>
-                <p className="text-sm text-foreground">{selectedBriefing.business_type}</p>
-              </div>
-            )}
-
-            {selectedBriefing.target_audience && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Público-Alvo</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.target_audience}</p>
-              </div>
-            )}
-
-            {selectedBriefing.main_goals && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Objetivos Principais</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.main_goals}</p>
-              </div>
-            )}
-
-            {selectedBriefing.brand_colors && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Cores da Marca</p>
-                <p className="text-sm text-foreground">{selectedBriefing.brand_colors}</p>
-              </div>
-            )}
-
-            {selectedBriefing.brand_tone && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Tom de Voz</p>
-                <p className="text-sm text-foreground">{selectedBriefing.brand_tone}</p>
-              </div>
-            )}
-
-            {selectedBriefing.competitors && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Concorrentes</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.competitors}</p>
-              </div>
-            )}
-
-            {selectedBriefing.social_platforms && selectedBriefing.social_platforms.length > 0 && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-1.5">Plataformas Sociais</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedBriefing.social_platforms.map((p, i) => (
-                    <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{p}</span>
-                  ))}
+              {filledFields.map((field, i) => (
+                <div key={i} className="p-3 rounded-md border bg-muted/20">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">{field.label}</p>
+                  {field.isLink && field.value ? (
+                    <a href={field.value.startsWith("http") ? field.value : `https://${field.value}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all flex items-center gap-1">
+                      {field.value} <ExternalLink className="w-3 h-3 shrink-0" />
+                    </a>
+                  ) : (
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{field.value}</p>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
 
-            {selectedBriefing.content_preferences && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Preferências de Conteúdo</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.content_preferences}</p>
+              <div className="flex gap-2 justify-between pt-3 border-t">
+                <div className="flex gap-1.5">
+                  {selectedBriefing.status !== "reviewed" && (
+                    <button onClick={() => updateBriefingStatus(selectedBriefing.id, "reviewed")} className="px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
+                      Marcar Revisado
+                    </button>
+                  )}
+                  {selectedBriefing.status !== "approved" && (
+                    <button onClick={() => updateBriefingStatus(selectedBriefing.id, "approved")} className="px-3 py-1.5 rounded-md bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors">
+                      Aprovar
+                    </button>
+                  )}
+                  {selectedBriefing.status !== "archived" && (
+                    <button onClick={() => updateBriefingStatus(selectedBriefing.id, "archived")} className="px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
+                      Arquivar
+                    </button>
+                  )}
+                </div>
+                <button onClick={() => setSelectedBriefing(null)} className="px-4 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  Fechar
+                </button>
               </div>
-            )}
-
-            {selectedBriefing.additional_notes && (
-              <div className="p-3 rounded-md border bg-muted/20">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Observações Adicionais</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{selectedBriefing.additional_notes}</p>
-              </div>
-            )}
-
-            <div className="flex gap-2 justify-between pt-3 border-t">
-              <div className="flex gap-1.5">
-                {selectedBriefing.status !== "reviewed" && (
-                  <button onClick={() => updateBriefingStatus(selectedBriefing.id, "reviewed")} className="px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
-                    Marcar Revisado
-                  </button>
-                )}
-                {selectedBriefing.status !== "approved" && (
-                  <button onClick={() => updateBriefingStatus(selectedBriefing.id, "approved")} className="px-3 py-1.5 rounded-md bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors">
-                    Aprovar
-                  </button>
-                )}
-                {selectedBriefing.status !== "archived" && (
-                  <button onClick={() => updateBriefingStatus(selectedBriefing.id, "archived")} className="px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
-                    Arquivar
-                  </button>
-                )}
-              </div>
-              <button onClick={() => setSelectedBriefing(null)} className="px-4 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Fechar
-              </button>
             </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* Client Detail Modal */}
       {selectedClientId && (() => {

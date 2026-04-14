@@ -15,55 +15,97 @@ export type Database = {
       client_briefings: {
         Row: {
           id: string
-          client_name: string
-          client_email: string | null
-          phone: string | null
-          company: string | null
-          business_type: string | null
-          target_audience: string | null
-          main_goals: string | null
-          brand_colors: string | null
-          brand_tone: string | null
-          competitors: string | null
-          social_platforms: string[] | null
-          content_preferences: string | null
-          additional_notes: string | null
+          nome_marca: string
+          site_link: string | null
+          historia_marca: string | null
+          produtos_servicos: string | null
+          diferenciais: string | null
+          dores_resultados: string | null
+          perfil_cliente_atual: string | null
+          cliente_ideal: string | null
+          meta_principal: string | null
+          acao_desejada: string | null
+          metrica_36meses: string | null
+          percepcao_marca: string | null
+          tom_de_voz: string | null
+          referencia_conteudo: string | null
+          estilo_nao_gosta: string | null
+          fotos_link: string | null
+          videos_link: string | null
+          disponibilidade_gravacao: string | null
+          estilo_video: string | null
+          escopo_entrega: string | null
+          objetivo_mes: string | null
+          foco_15dias: string | null
+          duvida_cliente: string | null
+          objetivo_cliente: string | null
+          links_videos_referencia: string | null
+          comunicacao_videos: string | null
+          restricoes: string | null
           status: string
           created_at: string
         }
         Insert: {
           id?: string
-          client_name: string
-          client_email?: string | null
-          phone?: string | null
-          company?: string | null
-          business_type?: string | null
-          target_audience?: string | null
-          main_goals?: string | null
-          brand_colors?: string | null
-          brand_tone?: string | null
-          competitors?: string | null
-          social_platforms?: string[] | null
-          content_preferences?: string | null
-          additional_notes?: string | null
+          nome_marca: string
+          site_link?: string | null
+          historia_marca?: string | null
+          produtos_servicos?: string | null
+          diferenciais?: string | null
+          dores_resultados?: string | null
+          perfil_cliente_atual?: string | null
+          cliente_ideal?: string | null
+          meta_principal?: string | null
+          acao_desejada?: string | null
+          metrica_36meses?: string | null
+          percepcao_marca?: string | null
+          tom_de_voz?: string | null
+          referencia_conteudo?: string | null
+          estilo_nao_gosta?: string | null
+          fotos_link?: string | null
+          videos_link?: string | null
+          disponibilidade_gravacao?: string | null
+          estilo_video?: string | null
+          escopo_entrega?: string | null
+          objetivo_mes?: string | null
+          foco_15dias?: string | null
+          duvida_cliente?: string | null
+          objetivo_cliente?: string | null
+          links_videos_referencia?: string | null
+          comunicacao_videos?: string | null
+          restricoes?: string | null
           status?: string
           created_at?: string
         }
         Update: {
           id?: string
-          client_name?: string
-          client_email?: string | null
-          phone?: string | null
-          company?: string | null
-          business_type?: string | null
-          target_audience?: string | null
-          main_goals?: string | null
-          brand_colors?: string | null
-          brand_tone?: string | null
-          competitors?: string | null
-          social_platforms?: string[] | null
-          content_preferences?: string | null
-          additional_notes?: string | null
+          nome_marca?: string
+          site_link?: string | null
+          historia_marca?: string | null
+          produtos_servicos?: string | null
+          diferenciais?: string | null
+          dores_resultados?: string | null
+          perfil_cliente_atual?: string | null
+          cliente_ideal?: string | null
+          meta_principal?: string | null
+          acao_desejada?: string | null
+          metrica_36meses?: string | null
+          percepcao_marca?: string | null
+          tom_de_voz?: string | null
+          referencia_conteudo?: string | null
+          estilo_nao_gosta?: string | null
+          fotos_link?: string | null
+          videos_link?: string | null
+          disponibilidade_gravacao?: string | null
+          estilo_video?: string | null
+          escopo_entrega?: string | null
+          objetivo_mes?: string | null
+          foco_15dias?: string | null
+          duvida_cliente?: string | null
+          objetivo_cliente?: string | null
+          links_videos_referencia?: string | null
+          comunicacao_videos?: string | null
+          restricoes?: string | null
           status?: string
           created_at?: string
         }
