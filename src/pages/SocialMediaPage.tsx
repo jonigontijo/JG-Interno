@@ -520,7 +520,7 @@ export default function SocialMediaPage() {
                 type="text"
                 value={briefingSearch}
                 onChange={(e) => setBriefingSearch(e.target.value)}
-                placeholder="Buscar por nome, empresa ou email..."
+                placeholder="Buscar por marca, meta ou objetivo..."
                 className="w-full pl-9 pr-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground"
               />
             </div>
