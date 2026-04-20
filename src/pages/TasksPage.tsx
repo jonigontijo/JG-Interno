@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { formatTime } from "@/data/mockData";
 import { LayoutGrid, List, Plus, Play, Square, Clock, GripVertical, Pause, Trash2, Pencil, Repeat, Filter } from "lucide-react";
 import { useTimeTick } from "@/hooks/useTimeTick";
+import { useDragToScroll } from "@/hooks/useDragToScroll";
 import type { Task } from "@/data/mockData";
 import { formatDeadline, deadlineColor } from "@/lib/formatDeadline";
 
@@ -250,7 +251,8 @@ export default function TasksPage() {
     setDropTargetId(null);
   };
 
-  const kanbanContainerRef = React.useRef<HTMLDivElement>(null);
+  const dragScrollRef = useDragToScroll<HTMLDivElement>();
+  const kanbanContainerRef = dragScrollRef;
   const autoScrollRef = React.useRef<number | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {

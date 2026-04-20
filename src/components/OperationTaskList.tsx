@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Task } from "@/data/mockData";
 import { formatDeadline, deadlineColor } from "@/lib/formatDeadline";
+import { useDragToScroll } from "@/hooks/useDragToScroll";
 
 function toYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -21,6 +22,7 @@ interface OperationTaskListProps {
 }
 
 export default function OperationTaskList({ moduleName, tasks }: OperationTaskListProps) {
+  const dragScrollRef = useDragToScroll<HTMLDivElement>();
   const { startTask, completeTask, pauseTask, resumeTask, deleteTask, updateTask, clients, logAudit } = useAppStore();
   const currentUser = useAuthStore((s) => s.currentUser);
   const MODULE_NAME_TO_SECTOR: Record<string, string> = {
@@ -362,11 +364,11 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
 
       {/* Kanban view */}
       {viewMode === "kanban" && (
-        <div className="grid grid-cols-4 gap-3">
+        <div ref={dragScrollRef} className="flex gap-3 overflow-x-auto pb-4">
           {kanbanColumns.map(col => {
             const colTasks = displayTasks.filter(t => col.statuses.includes(t.status));
             return (
-              <div key={col.key} className={`rounded-lg border-t-2 ${col.color} bg-muted/20 p-2 min-h-[200px]`}>
+              <div key={col.key} className={`rounded-lg border-t-2 ${col.color} bg-muted/20 p-2 min-h-[200px] min-w-[260px] flex-shrink-0 flex-1`}>
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h4 className="text-xs font-semibold text-foreground">{col.label}</h4>
                   <span className="text-[10px] w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-bold">

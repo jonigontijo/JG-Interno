@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Plus, Calendar, Edit2, Save, X } from "lucide-react";
 import type { Lead } from "@/data/mockData";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useDragToScroll } from "@/hooks/useDragToScroll";
 
 const stages = [
   { key: "meeting_scheduled", label: "Reunião Agendada" },
@@ -26,6 +27,7 @@ const allServices = [
 ];
 
 export default function ProspectionPage() {
+  const dragScrollRef = useDragToScroll<HTMLDivElement>();
   const { leads, addLead, updateLead } = useAppStore();
   const [showModal, setShowModal] = useState(false);
   const [editingLead, setEditingLead] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function ProspectionPage() {
         </button>
       </PageHeader>
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div ref={dragScrollRef} className="flex gap-4 overflow-x-auto pb-4">
         {stages.map(stage => {
           const stageLeads = leads.filter(l => l.stage === stage.key);
           return (
