@@ -251,6 +251,13 @@ export default function TasksPage() {
     setDropTargetId(null);
   };
 
+  const dragHandleActive = React.useRef(false);
+  React.useEffect(() => {
+    const reset = () => { dragHandleActive.current = false; };
+    window.addEventListener("mouseup", reset);
+    return () => window.removeEventListener("mouseup", reset);
+  }, []);
+
   const dragScrollRef = useDragToScroll<HTMLDivElement>();
   const kanbanContainerRef = dragScrollRef;
   const autoScrollRef = React.useRef<number | null>(null);
@@ -377,19 +384,25 @@ export default function TasksPage() {
                     return (
                       <div
                         key={task.id}
-                        className={`kanban-card group cursor-grab active:cursor-grabbing relative ${
+                        className={`kanban-card group relative ${
                           isDropTarget && dropPosition === "above" ? "border-t-2 border-t-primary mt-1" : ""
                         } ${isDropTarget && dropPosition === "below" ? "border-b-2 border-b-primary mb-1" : ""
                         } ${draggedTaskId === task.id ? "opacity-40" : ""}`}
                         draggable
-                        onDragStart={(e) => handleDragStart(e, task.id)}
+                        onDragStart={(e) => {
+                          if (!dragHandleActive.current) { e.preventDefault(); return; }
+                          handleDragStart(e, task.id);
+                        }}
                         onDragOver={(e) => handleCardDragOver(e, task.id)}
                         onDrop={(e) => handleCardDrop(e, task.id, col.key)}
                         onDragEnd={handleDragEnd}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex items-center gap-1 min-w-0">
-                            <GripVertical className="w-3 h-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                            <GripVertical
+                              className="drag-handle w-3 h-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-grab active:cursor-grabbing"
+                              onMouseDown={() => { dragHandleActive.current = true; }}
+                            />
                             <h3
                               className="text-sm font-medium text-foreground leading-snug cursor-pointer hover:text-primary transition-colors truncate"
                               onClick={(e) => { e.stopPropagation(); setEditTask({ ...task }); }}
