@@ -14,6 +14,20 @@ import { useDragToScroll } from "@/hooks/useDragToScroll";
 import type { Task } from "@/data/mockData";
 import { formatDeadline, deadlineColor } from "@/lib/formatDeadline";
 
+// #region agent log
+const __dlog = (location: string, message: string, data: any = {}, hypothesisId?: string) => {
+  try {
+    // eslint-disable-next-line no-console
+    console.log(`[DBG ${hypothesisId || '-'}] ${location} :: ${message}`, data);
+    fetch('http://127.0.0.1:7766/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'ca3c2f' },
+      body: JSON.stringify({ sessionId: 'ca3c2f', location, message, data, hypothesisId, timestamp: Date.now() }),
+    }).catch(() => {});
+  } catch {}
+};
+// #endregion
+
 const kanbanColumns = [
   { key: "urgent", label: "Urgente" },
   { key: "backlog", label: "Não Iniciada" },
@@ -200,6 +214,9 @@ export default function TasksPage() {
   };
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    // #region agent log
+    __dlog('TasksPage.tsx:handleDragStart', 'drag actually started after gate', { taskId }, 'H1');
+    // #endregion
     setDraggedTaskId(taskId);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -210,13 +227,20 @@ export default function TasksPage() {
     if (targetTaskId === draggedTaskId) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
-    setDropPosition(e.clientY < midY ? "above" : "below");
+    const pos = e.clientY < midY ? "above" : "below";
+    // #region agent log
+    __dlog('TasksPage.tsx:handleCardDragOver', 'dragover on a card', { targetTaskId, draggedTaskId, pos }, 'H3');
+    // #endregion
+    setDropPosition(pos);
     setDropTargetId(targetTaskId);
   };
 
   const handleCardDrop = (e: React.DragEvent, targetTaskId: string, colKey: string) => {
     e.preventDefault();
     e.stopPropagation();
+    // #region agent log
+    __dlog('TasksPage.tsx:handleCardDrop', 'drop on a card', { targetTaskId, draggedTaskId, colKey, dropPosition }, 'H4');
+    // #endregion
     if (!draggedTaskId || draggedTaskId === targetTaskId) {
       setDraggedTaskId(null);
       setDropTargetId(null);
@@ -289,6 +313,9 @@ export default function TasksPage() {
 
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
+    // #region agent log
+    __dlog('TasksPage.tsx:handleDrop', 'column-level drop fired', { targetStatus, draggedTaskId }, 'H4');
+    // #endregion
     if (!draggedTaskId) return;
     
     if (targetStatus === "in_progress") {
@@ -390,6 +417,9 @@ export default function TasksPage() {
                         } ${draggedTaskId === task.id ? "opacity-40" : ""}`}
                         draggable
                         onDragStart={(e) => {
+                          // #region agent log
+                          __dlog('TasksPage.tsx:onDragStart', 'card onDragStart fired', { taskId: task.id, dragHandleActive: dragHandleActive.current, willPrevent: !dragHandleActive.current }, 'H1');
+                          // #endregion
                           if (!dragHandleActive.current) { e.preventDefault(); return; }
                           handleDragStart(e, task.id);
                         }}
@@ -401,7 +431,12 @@ export default function TasksPage() {
                           <div className="flex items-center gap-1 min-w-0">
                             <GripVertical
                               className="drag-handle w-3 h-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-grab active:cursor-grabbing"
-                              onMouseDown={() => { dragHandleActive.current = true; }}
+                              onMouseDown={() => {
+                                dragHandleActive.current = true;
+                                // #region agent log
+                                __dlog('TasksPage.tsx:GripVertical.onMouseDown', 'GripVertical handle clicked', { taskId: task.id }, 'H1');
+                                // #endregion
+                              }}
                             />
                             <h3
                               className="text-sm font-medium text-foreground leading-snug cursor-pointer hover:text-primary transition-colors truncate"
