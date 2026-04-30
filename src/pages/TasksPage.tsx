@@ -275,13 +275,6 @@ export default function TasksPage() {
     setDropTargetId(null);
   };
 
-  const dragHandleActive = React.useRef(false);
-  React.useEffect(() => {
-    const reset = () => { dragHandleActive.current = false; };
-    window.addEventListener("mouseup", reset);
-    return () => window.removeEventListener("mouseup", reset);
-  }, []);
-
   const dragScrollRef = useDragToScroll<HTMLDivElement>();
   const kanbanContainerRef = dragScrollRef;
   const autoScrollRef = React.useRef<number | null>(null);
@@ -418,9 +411,8 @@ export default function TasksPage() {
                         draggable
                         onDragStart={(e) => {
                           // #region agent log
-                          __dlog('TasksPage.tsx:onDragStart', 'card onDragStart fired', { taskId: task.id, dragHandleActive: dragHandleActive.current, willPrevent: !dragHandleActive.current }, 'H1');
+                          __dlog('TasksPage.tsx:onDragStart', 'card onDragStart fired (post-fix)', { taskId: task.id, runId: 'post-fix' }, 'H1');
                           // #endregion
-                          if (!dragHandleActive.current) { e.preventDefault(); return; }
                           handleDragStart(e, task.id);
                         }}
                         onDragOver={(e) => handleCardDragOver(e, task.id)}
@@ -431,12 +423,6 @@ export default function TasksPage() {
                           <div className="flex items-center gap-1 min-w-0">
                             <GripVertical
                               className="drag-handle w-3 h-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-grab active:cursor-grabbing"
-                              onMouseDown={() => {
-                                dragHandleActive.current = true;
-                                // #region agent log
-                                __dlog('TasksPage.tsx:GripVertical.onMouseDown', 'GripVertical handle clicked', { taskId: task.id }, 'H1');
-                                // #endregion
-                              }}
                             />
                             <h3
                               className="text-sm font-medium text-foreground leading-snug cursor-pointer hover:text-primary transition-colors truncate"

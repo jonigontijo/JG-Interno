@@ -24,7 +24,7 @@ export function useDragToScroll<T extends HTMLElement = HTMLDivElement>() {
     if (!container) return;
 
     const target = e.target as HTMLElement;
-    if (target.closest("button, a, input, select, textarea, .drag-handle")) return;
+    if (target.closest("button, a, input, select, textarea, .drag-handle, [draggable='true']")) return;
 
     state.current = {
       phase: "pending",
