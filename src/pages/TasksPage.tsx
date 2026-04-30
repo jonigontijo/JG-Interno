@@ -14,20 +14,6 @@ import { useDragToScroll } from "@/hooks/useDragToScroll";
 import type { Task } from "@/data/mockData";
 import { formatDeadline, deadlineColor } from "@/lib/formatDeadline";
 
-// #region agent log
-const __dlog = (location: string, message: string, data: any = {}, hypothesisId?: string) => {
-  try {
-    // eslint-disable-next-line no-console
-    console.log(`[DBG ${hypothesisId || '-'}] ${location} :: ${message}`, data);
-    fetch('http://127.0.0.1:7766/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'ca3c2f' },
-      body: JSON.stringify({ sessionId: 'ca3c2f', location, message, data, hypothesisId, timestamp: Date.now() }),
-    }).catch(() => {});
-  } catch {}
-};
-// #endregion
-
 const kanbanColumns = [
   { key: "urgent", label: "Urgente" },
   { key: "backlog", label: "Não Iniciada" },
@@ -214,9 +200,6 @@ export default function TasksPage() {
   };
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    // #region agent log
-    __dlog('TasksPage.tsx:handleDragStart', 'drag actually started after gate', { taskId }, 'H1');
-    // #endregion
     setDraggedTaskId(taskId);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -227,20 +210,13 @@ export default function TasksPage() {
     if (targetTaskId === draggedTaskId) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
-    const pos = e.clientY < midY ? "above" : "below";
-    // #region agent log
-    __dlog('TasksPage.tsx:handleCardDragOver', 'dragover on a card', { targetTaskId, draggedTaskId, pos }, 'H3');
-    // #endregion
-    setDropPosition(pos);
+    setDropPosition(e.clientY < midY ? "above" : "below");
     setDropTargetId(targetTaskId);
   };
 
   const handleCardDrop = (e: React.DragEvent, targetTaskId: string, colKey: string) => {
     e.preventDefault();
     e.stopPropagation();
-    // #region agent log
-    __dlog('TasksPage.tsx:handleCardDrop', 'drop on a card', { targetTaskId, draggedTaskId, colKey, dropPosition }, 'H4');
-    // #endregion
     if (!draggedTaskId || draggedTaskId === targetTaskId) {
       setDraggedTaskId(null);
       setDropTargetId(null);
@@ -306,9 +282,6 @@ export default function TasksPage() {
 
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
-    // #region agent log
-    __dlog('TasksPage.tsx:handleDrop', 'column-level drop fired', { targetStatus, draggedTaskId }, 'H4');
-    // #endregion
     if (!draggedTaskId) return;
     
     if (targetStatus === "in_progress") {
@@ -409,12 +382,7 @@ export default function TasksPage() {
                         } ${isDropTarget && dropPosition === "below" ? "border-b-2 border-b-primary mb-1" : ""
                         } ${draggedTaskId === task.id ? "opacity-40" : ""}`}
                         draggable
-                        onDragStart={(e) => {
-                          // #region agent log
-                          __dlog('TasksPage.tsx:onDragStart', 'card onDragStart fired (post-fix)', { taskId: task.id, runId: 'post-fix' }, 'H1');
-                          // #endregion
-                          handleDragStart(e, task.id);
-                        }}
+                        onDragStart={(e) => handleDragStart(e, task.id)}
                         onDragOver={(e) => handleCardDragOver(e, task.id)}
                         onDrop={(e) => handleCardDrop(e, task.id, col.key)}
                         onDragEnd={handleDragEnd}

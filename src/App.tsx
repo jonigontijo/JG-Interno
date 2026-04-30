@@ -199,24 +199,55 @@ function AuthenticatedApp() {
   );
 }
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string; stack: string }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: "" };
+    this.state = { hasError: false, error: "", stack: "" };
   }
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error: error.message };
+    return { hasError: true, error: error.message, stack: error.stack || "" };
+  }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // #region agent log
+    // eslint-disable-next-line no-console
+    console.error('[DBG ERR-BOUNDARY] caught error:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      componentStack: errorInfo?.componentStack,
+    });
+    try {
+      fetch('http://127.0.0.1:7766/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'ca3c2f' },
+        body: JSON.stringify({
+          sessionId: 'ca3c2f',
+          location: 'App.tsx:ErrorBoundary',
+          message: 'caught error',
+          data: { message: error?.message, name: error?.name, stack: error?.stack, componentStack: errorInfo?.componentStack },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    } catch {}
+    // #endregion
   }
   render() {
     if (this.state.hasError) {
       return (
         <div style={{ minHeight: "100vh", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ maxWidth: 400, textAlign: "center", color: "#fff" }}>
-            <h2 style={{ fontSize: 18, marginBottom: 8 }}>Algo deu errado</h2>
-            <p style={{ fontSize: 12, color: "#999", marginBottom: 16 }}>{this.state.error}</p>
-            <button onClick={() => window.location.reload()} style={{ padding: "8px 24px", borderRadius: 6, background: "#c5a236", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}>
-              Recarregar
-            </button>
+          <div style={{ maxWidth: 600, textAlign: "left", color: "#fff" }}>
+            <h2 style={{ fontSize: 18, marginBottom: 8, textAlign: "center" }}>Algo deu errado</h2>
+            <p style={{ fontSize: 12, color: "#fbbf24", marginBottom: 8, textAlign: "center", fontWeight: 600 }}>{this.state.error}</p>
+            {/* #region agent log */}
+            <pre style={{ fontSize: 10, color: "#999", marginBottom: 16, maxHeight: 200, overflow: "auto", background: "#000", padding: 8, borderRadius: 4, whiteSpace: "pre-wrap" }}>
+              {this.state.stack}
+            </pre>
+            {/* #endregion */}
+            <div style={{ textAlign: "center" }}>
+              <button onClick={() => window.location.reload()} style={{ padding: "8px 24px", borderRadius: 6, background: "#c5a236", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                Recarregar
+              </button>
+            </div>
           </div>
         </div>
       );
