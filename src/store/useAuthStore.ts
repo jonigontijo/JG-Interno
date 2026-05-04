@@ -159,6 +159,61 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const email = `${user.username.toLowerCase()}@jg.internal`;
     const password = user.password || `${user.username}123`;
 
+    // #region agent log
+    const _caller = get().currentUser;
+    let _dbAdminCheck: any = null;
+    let _sessionInfo: any = null;
+    try {
+      const { data: sessRes } = await supabase.auth.getSession();
+      const sess = sessRes?.session;
+      _sessionInfo = {
+        hasSession: !!sess,
+        accessTokenLen: sess?.access_token?.length ?? 0,
+        accessTokenPrefix: sess?.access_token?.slice(0, 16),
+        userIdInJwt: sess?.user?.id,
+        emailInJwt: sess?.user?.email,
+        expiresAt: sess?.expires_at,
+      };
+      const authId = sess?.user?.id || _caller?.authId;
+      if (authId) {
+        const { data: dbProf, error: dbErr } = await db('profiles').select('id, username, name, is_admin, active, module_access').eq('id', authId).single();
+        _dbAdminCheck = {
+          dbProfile: dbProf,
+          dbError: dbErr ? { message: dbErr.message, code: dbErr.code } : null,
+          localIsAdmin: _caller?.isAdmin,
+          dbIsAdmin: dbProf?.is_admin,
+          mismatch: _caller?.isAdmin !== dbProf?.is_admin,
+        };
+      }
+    } catch (e: any) {
+      _dbAdminCheck = { probeError: e?.message };
+    }
+    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e62233' },
+      body: JSON.stringify({
+        sessionId: 'e62233',
+        location: 'useAuthStore.ts:addUser:entry',
+        message: 'addUser called - admin probe',
+        data: {
+          email,
+          username: user.username,
+          passwordLen: password?.length ?? 0,
+          newUserName: user.name,
+          newUserRoles: user.roles,
+          callerId: _caller?.authId,
+          callerUsername: _caller?.username,
+          callerIsAdminLocal: _caller?.isAdmin,
+          hasLocalUser: !!_caller,
+          session: _sessionInfo,
+          dbAdminCheck: _dbAdminCheck,
+        },
+        hypothesisId: 'H1,H2,H3',
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
     const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-update-user', {
       body: {
         action: 'create',
@@ -176,11 +231,65 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     });
 
     if (fnError || fnData?.error) {
-      const errMsg = fnData?.error || fnError?.message || 'Erro desconhecido';
-      console.error('Error creating user:', errMsg);
+      // #region agent log
+      let _httpStatus: number | undefined;
+      let _httpBodyText: string | undefined;
+      let _httpBodyJson: any;
+      try {
+        const ctx: any = (fnError as any)?.context;
+        if (ctx && typeof ctx.text === 'function') {
+          const cloned = typeof ctx.clone === 'function' ? ctx.clone() : ctx;
+          _httpStatus = cloned.status;
+          _httpBodyText = await cloned.text();
+          try { _httpBodyJson = JSON.parse(_httpBodyText || ''); } catch {}
+        }
+      } catch (e: any) {
+        _httpBodyText = `[failed to read context: ${e?.message}]`;
+      }
+      fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e62233' },
+        body: JSON.stringify({
+          sessionId: 'e62233',
+          location: 'useAuthStore.ts:addUser:error',
+          message: 'edge function returned error',
+          data: {
+            fnErrorName: (fnError as any)?.name,
+            fnErrorMessage: fnError?.message,
+            fnDataError: fnData?.error,
+            fnDataKeys: fnData ? Object.keys(fnData) : null,
+            httpStatus: _httpStatus,
+            httpBodyText: _httpBodyText,
+            httpBodyJson: _httpBodyJson,
+          },
+          hypothesisId: 'H1,H2,H3,H4,H5',
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      const realServerError = _httpBodyJson?.error || _httpBodyText;
+      const errMsg = fnData?.error || realServerError || fnError?.message || 'Erro desconhecido';
+      console.error('Error creating user:', errMsg, { httpStatus: _httpStatus, body: _httpBodyText });
       toast.error(`Erro ao criar usuário: ${errMsg}`);
       return false;
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e62233' },
+      body: JSON.stringify({
+        sessionId: 'e62233',
+        location: 'useAuthStore.ts:addUser:success',
+        message: 'edge function returned success',
+        data: {
+          newUserId: fnData?.user?.id,
+          reactivated: !!fnData?.reactivated,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     if (user.recoveryEmail && fnData?.user?.id) {
       await db('profiles').update({ recovery_email: user.recoveryEmail }).eq('id', fnData.user.id);
