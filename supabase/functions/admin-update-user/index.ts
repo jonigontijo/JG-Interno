@@ -15,7 +15,8 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify caller is admin
+    // Verify caller is admin (use caller's own JWT so RLS lets them read their own profile;
+    // do NOT rely on service role here because if the env var is missing this whole branch breaks)
     const authHeader = req.headers.get("Authorization")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const callerClient = createClient(supabaseUrl, anonKey, {
@@ -29,15 +30,56 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if caller is admin
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", caller.id)
-      .single();
+    // Check admin status using the caller's own auth context (RLS allows users to read their own row).
+    // Fallback to service role if RLS blocks the read for any reason.
+    let callerIsAdmin = false;
+    let adminCheckSource = 'caller';
+    let profileErrorMsg: string | null = null;
+    {
+      const { data, error } = await callerClient
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", caller.id)
+        .maybeSingle();
+      if (error) profileErrorMsg = error.message;
+      if (data?.is_admin) {
+        callerIsAdmin = true;
+      } else {
+        const { data: adminData, error: adminErr } = await supabaseAdmin
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", caller.id)
+          .maybeSingle();
+        if (adminErr && !profileErrorMsg) profileErrorMsg = adminErr.message;
+        if (adminData?.is_admin) {
+          callerIsAdmin = true;
+          adminCheckSource = 'service_role';
+        }
+      }
+    }
 
-    if (!callerProfile?.is_admin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
+    // #region agent log
+    console.log(JSON.stringify({
+      sessionId: 'e62233',
+      location: 'admin-update-user:admin-check',
+      data: {
+        callerId: caller.id,
+        callerEmail: caller.email,
+        callerIsAdmin,
+        adminCheckSource,
+        profileErrorMsg,
+        hasServiceRoleKey: !!serviceRoleKey,
+        serviceRoleKeyLen: serviceRoleKey?.length || 0,
+      },
+      timestamp: Date.now(),
+    }));
+    // #endregion
+
+    if (!callerIsAdmin) {
+      return new Response(JSON.stringify({
+        error: "Forbidden",
+        debug: { callerId: caller.id, profileErrorMsg, hasServiceRoleKey: !!serviceRoleKey },
+      }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
