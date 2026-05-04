@@ -161,32 +161,64 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     // #region agent log
     const _caller = get().currentUser;
-    let _dbAdminCheck: any = null;
     let _sessionInfo: any = null;
+    let _refreshedInfo: any = null;
+    let _localStorageInfo: any = null;
     try {
       const { data: sessRes } = await supabase.auth.getSession();
       const sess = sessRes?.session;
+      const decodeJwtSub = (jwt?: string) => {
+        try {
+          if (!jwt) return null;
+          const part = jwt.split('.')[1];
+          const padded = part.replace(/-/g, '+').replace(/_/g, '/');
+          const json = JSON.parse(atob(padded));
+          return { sub: json.sub, email: json.email, exp: json.exp, iat: json.iat };
+        } catch (e: any) {
+          return { decodeError: e?.message };
+        }
+      };
       _sessionInfo = {
         hasSession: !!sess,
         accessTokenLen: sess?.access_token?.length ?? 0,
-        accessTokenPrefix: sess?.access_token?.slice(0, 16),
-        userIdInJwt: sess?.user?.id,
-        emailInJwt: sess?.user?.email,
-        expiresAt: sess?.expires_at,
+        accessTokenJwt: decodeJwtSub(sess?.access_token),
+        sessUserId: sess?.user?.id,
+        sessUserEmail: sess?.user?.email,
       };
-      const authId = sess?.user?.id || _caller?.authId;
-      if (authId) {
-        const { data: dbProf, error: dbErr } = await db('profiles').select('id, username, name, is_admin, active, module_access').eq('id', authId).single();
-        _dbAdminCheck = {
-          dbProfile: dbProf,
-          dbError: dbErr ? { message: dbErr.message, code: dbErr.code } : null,
-          localIsAdmin: _caller?.isAdmin,
-          dbIsAdmin: dbProf?.is_admin,
-          mismatch: _caller?.isAdmin !== dbProf?.is_admin,
+
+      try {
+        const projectRef = (import.meta.env.VITE_SUPABASE_URL || '').match(/https:\/\/([^.]+)/)?.[1];
+        const lsKey = `sb-${projectRef}-auth-token`;
+        const lsRaw = localStorage.getItem(lsKey);
+        if (lsRaw) {
+          const ls = JSON.parse(lsRaw);
+          _localStorageInfo = {
+            lsKey,
+            tokenJwt: decodeJwtSub(ls?.access_token),
+            userIdInLs: ls?.user?.id,
+            userEmailInLs: ls?.user?.email,
+            sameAsCurrentUser: ls?.user?.id === _caller?.authId,
+          };
+        } else {
+          _localStorageInfo = { lsKey, missing: true };
+        }
+      } catch (e: any) {
+        _localStorageInfo = { lsError: e?.message };
+      }
+
+      try {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        _refreshedInfo = {
+          hasRefreshed: !!refreshed?.session,
+          tokenJwt: decodeJwtSub(refreshed?.session?.access_token),
+          refreshedUserId: refreshed?.session?.user?.id,
+          refreshedUserEmail: refreshed?.session?.user?.email,
         };
+      } catch (e: any) {
+        _refreshedInfo = { refreshError: e?.message };
       }
     } catch (e: any) {
-      _dbAdminCheck = { probeError: e?.message };
+      _sessionInfo = { probeError: e?.message };
     }
     fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
       method: 'POST',
@@ -194,21 +226,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       body: JSON.stringify({
         sessionId: 'e62233',
         location: 'useAuthStore.ts:addUser:entry',
-        message: 'addUser called - admin probe',
+        message: 'addUser called - identity probe',
         data: {
           email,
           username: user.username,
-          passwordLen: password?.length ?? 0,
           newUserName: user.name,
-          newUserRoles: user.roles,
-          callerId: _caller?.authId,
-          callerUsername: _caller?.username,
-          callerIsAdminLocal: _caller?.isAdmin,
-          hasLocalUser: !!_caller,
-          session: _sessionInfo,
-          dbAdminCheck: _dbAdminCheck,
+          callerStore: { id: _caller?.authId, username: _caller?.username, isAdmin: _caller?.isAdmin },
+          sessionFromGetSession: _sessionInfo,
+          sessionFromLocalStorage: _localStorageInfo,
+          sessionAfterRefresh: _refreshedInfo,
         },
-        hypothesisId: 'H1,H2,H3',
+        hypothesisId: 'H_SESSION_MISMATCH',
         timestamp: Date.now(),
       }),
     }).catch(() => {});
