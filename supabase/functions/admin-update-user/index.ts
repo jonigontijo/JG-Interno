@@ -13,48 +13,83 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify caller is admin (use caller's own JWT so RLS lets them read their own profile;
-    // do NOT rely on service role here because if the env var is missing this whole branch breaks)
-    const authHeader = req.headers.get("Authorization")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user: caller } } = await callerClient.auth.getUser();
-    if (!caller) {
+    // #region agent log
+    console.log(JSON.stringify({
+      sessionId: 'e62233',
+      location: 'admin-update-user:env',
+      data: {
+        hasUrl: !!supabaseUrl,
+        hasServiceRole: !!serviceRoleKey,
+        serviceRoleLen: serviceRoleKey?.length || 0,
+        hasAnon: !!anonKey,
+      },
+      timestamp: Date.now(),
+    }));
+    // #endregion
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Check admin status using the caller's own auth context (RLS allows users to read their own row).
-    // Fallback to service role if RLS blocks the read for any reason.
+    const token = authHeader.replace("Bearer ", "");
+    let callerId: string;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      callerId = payload.sub;
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!callerId) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Try service-role first (bypasses RLS)
     let callerIsAdmin = false;
-    let adminCheckSource = 'caller';
-    let profileErrorMsg: string | null = null;
+    let adminCheckSource = 'service_role';
+    let serviceRoleProfile: any = null;
+    let serviceRoleErr: any = null;
     {
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .select("id, is_admin")
+        .eq("id", callerId)
+        .maybeSingle();
+      serviceRoleProfile = data;
+      serviceRoleErr = error;
+      if (data?.is_admin) callerIsAdmin = true;
+    }
+
+    // Fallback: use the caller's JWT (RLS allows authenticated users to read their own profile)
+    let callerJwtProfile: any = null;
+    let callerJwtErr: any = null;
+    if (!callerIsAdmin) {
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
       const { data, error } = await callerClient
         .from("profiles")
-        .select("is_admin")
-        .eq("id", caller.id)
+        .select("id, is_admin")
+        .eq("id", callerId)
         .maybeSingle();
-      if (error) profileErrorMsg = error.message;
+      callerJwtProfile = data;
+      callerJwtErr = error;
       if (data?.is_admin) {
         callerIsAdmin = true;
-      } else {
-        const { data: adminData, error: adminErr } = await supabaseAdmin
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", caller.id)
-          .maybeSingle();
-        if (adminErr && !profileErrorMsg) profileErrorMsg = adminErr.message;
-        if (adminData?.is_admin) {
-          callerIsAdmin = true;
-          adminCheckSource = 'service_role';
-        }
+        adminCheckSource = 'caller_jwt';
       }
     }
 
@@ -63,13 +98,13 @@ Deno.serve(async (req) => {
       sessionId: 'e62233',
       location: 'admin-update-user:admin-check',
       data: {
-        callerId: caller.id,
-        callerEmail: caller.email,
+        callerId,
         callerIsAdmin,
         adminCheckSource,
-        profileErrorMsg,
-        hasServiceRoleKey: !!serviceRoleKey,
-        serviceRoleKeyLen: serviceRoleKey?.length || 0,
+        serviceRoleProfile,
+        serviceRoleErr: serviceRoleErr ? { message: serviceRoleErr.message, code: serviceRoleErr.code, details: serviceRoleErr.details } : null,
+        callerJwtProfile,
+        callerJwtErr: callerJwtErr ? { message: callerJwtErr.message, code: callerJwtErr.code } : null,
       },
       timestamp: Date.now(),
     }));
@@ -78,7 +113,14 @@ Deno.serve(async (req) => {
     if (!callerIsAdmin) {
       return new Response(JSON.stringify({
         error: "Forbidden",
-        debug: { callerId: caller.id, profileErrorMsg, hasServiceRoleKey: !!serviceRoleKey },
+        debug: {
+          callerId,
+          serviceRoleProfile,
+          serviceRoleErrMsg: serviceRoleErr?.message,
+          callerJwtProfile,
+          callerJwtErrMsg: callerJwtErr?.message,
+          hasServiceRoleKey: !!serviceRoleKey,
+        },
       }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -88,10 +130,9 @@ Deno.serve(async (req) => {
     const { action, userId, email, password, username, userData } = await req.json();
 
     if (action === "update") {
-      // Update user auth credentials
       const updateData: any = {};
       if (email) updateData.email = email;
-      if (password) updateData.password = password;
+      if (password && password.length >= 6) updateData.password = password;
       if (userData) updateData.user_metadata = userData;
 
       const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, updateData);
@@ -106,68 +147,62 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "list") {
-      // List all auth users to find user by email
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers();
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+    if (action === "create") {
+      const safePassword = (password && password.length >= 6) ? password : null;
+
+      if (!safePassword) {
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+        const existing = listData?.users?.find((u: any) => u.email === email);
+        if (existing) {
+          const updatePayload: any = { email_confirm: true };
+          if (userData) updatePayload.user_metadata = { ...existing.user_metadata, ...userData };
+
+          const { data: updated, error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(existing.id, updatePayload);
+          if (updateErr) {
+            return new Response(JSON.stringify({ error: updateErr.message }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          await supabaseAdmin.from("profiles").update({ active: true }).eq("id", existing.id);
+          return new Response(JSON.stringify({ success: true, user: updated.user, reactivated: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: "Senha inv\u00e1lida (m\u00ednimo 6 caracteres) e usu\u00e1rio n\u00e3o existe para reativar" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ users: data.users.map(u => ({ id: u.id, email: u.email })) }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
-    if (action === "create") {
-      // Try to create user with admin API (auto-confirms)
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email: email,
-        password: password,
+        password: safePassword,
         email_confirm: true,
         user_metadata: userData || {},
       });
 
       if (error) {
-        // If user already exists in auth, reactivate them
-        if (error.message.includes("already been registered")) {
-          // Find existing user by email
+        if (error.message.includes("already been registered") || error.message.includes("already exists") || (error as any).status === 422) {
           const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
-          const existingUser = listData?.users?.find((u: any) => u.email === email);
+          const existing = listData?.users?.find((u: any) => u.email === email);
+          if (existing) {
+            const updatePayload: any = { email_confirm: true, password: safePassword };
+            if (userData) updatePayload.user_metadata = { ...existing.user_metadata, ...userData };
 
-          if (existingUser) {
-            // Update the existing auth user with new data
-            const { data: updatedData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-              password: password,
-              email_confirm: true,
-              user_metadata: userData || {},
-              ban_duration: "none",
-            });
-
-            if (updateError) {
-              return new Response(JSON.stringify({ error: updateError.message }), {
+            const { data: updated, error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(existing.id, updatePayload);
+            if (updateErr) {
+              return new Response(JSON.stringify({ error: updateErr.message }), {
                 status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               });
             }
-
-            // Reactivate profile
-            await supabaseAdmin.from("profiles").update({
-              active: true,
-              name: userData?.name || "",
-              role: userData?.role || "",
-              roles: userData?.roles || [],
-              is_admin: userData?.is_admin || false,
-              module_access: userData?.module_access || [],
-            }).eq("id", existingUser.id);
-
-            return new Response(JSON.stringify({ success: true, user: updatedData.user, reactivated: true }), {
+            await supabaseAdmin.from("profiles").update({ active: true }).eq("id", existing.id);
+            return new Response(JSON.stringify({ success: true, user: updated.user, reactivated: true }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
         }
-
         return new Response(JSON.stringify({ error: error.message }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -179,7 +214,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
-      // Delete user from auth completely
       if (!userId) {
         return new Response(JSON.stringify({ error: "userId is required" }), {
           status: 400,
@@ -198,12 +232,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "list") {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ users: data.users.map((u: any) => ({ id: u.id, email: u.email })) }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as any).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
