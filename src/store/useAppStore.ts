@@ -3,6 +3,7 @@ import { mockClients, mockTasks, mockLeads, mockTeam } from "@/data/mockData";
 import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
 import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQuoteRequests, loadInternalRequests, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB, db } from "@/lib/supabaseData";
 import { toast } from "sonner";
+import { useAuthStore } from "./useAuthStore";
 
 export type {
   QuoteRequest, InternalRequest, ProductivityRecord, SettingItem,
@@ -607,10 +608,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   addTask: (task) => {
-    set((s) => ({ tasks: [...s.tasks, task] }));
-    // Direct DB write for reliability
-    const mapped = mapTaskToDB(task);
-    db('tasks').upsert(mapped).then(({ error }: any) => {
+    const createdBy = task.createdBy || useAuthStore.getState().currentUser?.name;
+    const enriched: Task = createdBy ? { ...task, createdBy } : task;
+    set((s) => ({ tasks: [...s.tasks, enriched] }));
+    db('tasks').upsert(mapTaskToDB(enriched)).then(({ error }: any) => {
       if (error) {
         console.error('Direct addTask DB write failed:', error);
         toast.error('Erro ao salvar tarefa no banco');

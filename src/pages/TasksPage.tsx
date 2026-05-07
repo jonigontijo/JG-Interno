@@ -55,11 +55,12 @@ export default function TasksPage() {
     "financial": ["Financeiro"],
   };
 
-  // Admin sees all; others see own tasks + tasks from sectors they have visibility permission for
+  // Admin sees all; others see tasks assigned to them, tasks they created, or tasks from sectors they have visibility permission for
   const myTasks = currentUser?.isAdmin
     ? tasks
     : tasks.filter(t => {
         if (t.assignee === currentUser?.name) return true;
+        if (t.createdBy && t.createdBy === currentUser?.name) return true;
         const sectorAccess = currentUser?.sectorVisibility || [];
         for (const sector of sectorAccess) {
           const taskModules = SECTOR_TO_TASK_MODULE[sector];

@@ -82,6 +82,7 @@ export interface Task {
   recurUntil?: string;
   recurType?: "daily" | "weekly" | "monthly" | "yearly" | "custom";
   recurDaysInterval?: number;
+  createdBy?: string;
 }
 
 export interface Lead {

@@ -100,6 +100,7 @@ export function mapTaskFromDB(row: any): Task {
     recurUntil: row.recur_until || undefined,
     recurType: row.recur_type || undefined,
     recurDaysInterval: row.recur_days_interval || undefined,
+    createdBy: row.created_by || undefined,
   } as any;
 }
 
@@ -117,6 +118,7 @@ export function mapTaskToDB(t: Task): any {
     recur_until: (t as any).recurUntil ?? null,
     recur_type: (t as any).recurType ?? null,
     recur_days_interval: (t as any).recurDaysInterval ?? null,
+    created_by: (t as any).createdBy ?? null,
   };
 }
 

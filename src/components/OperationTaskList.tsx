@@ -43,15 +43,17 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
 
   const myName = currentUser?.name || "";
 
-  const myTasks = tasks.filter(t => t.assignee === myName);
-  const myTaskClientIds = new Set(tasks.filter(t => t.assignee === myName).map(t => t.clientId));
+  // "Mine" = tasks assigned to me OR tasks I created
+  const isMine = (t: Task) => t.assignee === myName || (!!t.createdBy && t.createdBy === myName);
+  const myTasks = tasks.filter(isMine);
+  const myTaskClientIds = new Set(myTasks.map(t => t.clientId));
   const myTeamClientIds = new Set(
     clients
       .filter(c => c.assignedTeam?.some(a => a.memberName === myName))
       .map(c => c.id)
   );
   const myClientIds = new Set([...myTaskClientIds, ...myTeamClientIds]);
-  const generalTasks = tasks.filter(t => t.assignee !== myName && myClientIds.has(t.clientId));
+  const generalTasks = tasks.filter(t => !isMine(t) && myClientIds.has(t.clientId));
 
   const now24h = Date.now() - 24 * 60 * 60 * 1000;
   const hideOldDone = (t: Task) => {
@@ -62,7 +64,7 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
   };
 
   const baseTasks = (canSeeAllSectorTasks
-    ? (activeView === "mine" ? myTasks : tasks.filter(t => t.assignee !== myName))
+    ? (activeView === "mine" ? myTasks : tasks.filter(t => !isMine(t)))
     : (activeView === "mine" ? myTasks : generalTasks)
   ).filter(hideOldDone);
 
@@ -304,9 +306,9 @@ export default function OperationTaskList({ moduleName, tasks }: OperationTaskLi
             }`}
           >
             <UsersIcon className="w-3.5 h-3.5" /> Tarefas Gerais
-            {(isAdminOrGerente ? tasks.filter(t => t.assignee !== myName) : generalTasks).filter(t => t.status !== "done").length > 0 && (
+            {(isAdminOrGerente ? tasks.filter(t => !isMine(t)) : generalTasks).filter(t => t.status !== "done").length > 0 && (
               <span className="ml-1 w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] flex items-center justify-center font-bold">
-                {(isAdminOrGerente ? tasks.filter(t => t.assignee !== myName) : generalTasks).filter(t => t.status !== "done").length}
+                {(isAdminOrGerente ? tasks.filter(t => !isMine(t)) : generalTasks).filter(t => t.status !== "done").length}
               </span>
             )}
           </button>
