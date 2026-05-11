@@ -5,6 +5,24 @@ export function db(table: string) {
   return (supabase as any).from(table);
 }
 
+// Supabase/PostgREST trunca silenciosamente em 1000 linhas por padrao.
+// Esta helper pagina o select para garantir que TODAS as linhas sejam retornadas,
+// independente do tamanho da tabela. Sem isso, tarefas (e qualquer outra entidade
+// que ultrapasse 1000 registros) somem aleatoriamente apos um F5.
+const PAGE_SIZE = 1000;
+export async function selectAll(table: string, columns: string = '*'): Promise<any[]> {
+  const out: any[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await db(table).select(columns).range(from, to);
+    if (error) throw error;
+    const rows = data || [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 // ============ TEAM MEMBERS ============
 export function mapTeamFromDB(row: any): TeamMember {
   return {
@@ -225,78 +243,77 @@ export function mapProductivityToDB(p: any): any {
 // ============ GRANULAR LOADERS ============
 
 export async function loadClients() {
-  const [clientsRes, assignmentsRes, servicesRes] = await Promise.all([
-    db('clients').select('*'),
-    db('client_team_assignments').select('*'),
-    db('client_recurring_services').select('*'),
+  const [clientRows, assignments, services] = await Promise.all([
+    selectAll('clients'),
+    selectAll('client_team_assignments'),
+    selectAll('client_recurring_services'),
   ]);
-  if (clientsRes.error) throw clientsRes.error;
-  const assignments = assignmentsRes.data || [];
-  const services = servicesRes.data || [];
-  return (clientsRes.data || []).map((row: any) => mapClientFromDB(row, assignments, services));
+  return clientRows.map((row: any) => mapClientFromDB(row, assignments, services));
 }
 
 export async function loadTasks() {
-  const { data, error } = await db('tasks').select('*');
-  if (error) throw error;
-  return (data || []).map(mapTaskFromDB);
+  const rows = await selectAll('tasks');
+  return rows.map(mapTaskFromDB);
 }
 
 export async function loadTeamMembers() {
-  const [teamRes, profilesRes] = await Promise.all([
-    db('team_members').select('*'),
-    db('profiles').select('name, active'),
+  const [teamRows, profileRows] = await Promise.all([
+    selectAll('team_members'),
+    selectAll('profiles', 'name, active'),
   ]);
-  if (teamRes.error) throw teamRes.error;
   const activeProfileNames = new Set(
-    (profilesRes.data || [])
+    profileRows
       .filter((p: any) => p.active)
       .map((p: any) => (p.name || '').toLowerCase())
   );
-  return (teamRes.data || []).map(mapTeamFromDB).filter((m: TeamMember) => activeProfileNames.has(m.name.toLowerCase()));
+  return teamRows.map(mapTeamFromDB).filter((m: TeamMember) => activeProfileNames.has(m.name.toLowerCase()));
 }
 
 export async function loadLeads() {
-  const { data, error } = await db('leads').select('*');
-  if (error) throw error;
-  return (data || []).map(mapLeadFromDB);
+  const rows = await selectAll('leads');
+  return rows.map(mapLeadFromDB);
 }
 
 export async function loadQuoteRequests() {
-  const { data, error } = await db('quote_requests').select('*');
-  if (error) throw error;
-  return (data || []).map(mapQuoteFromDB);
+  const rows = await selectAll('quote_requests');
+  return rows.map(mapQuoteFromDB);
 }
 
 export async function loadInternalRequests() {
-  const { data, error } = await db('internal_requests').select('*');
-  if (error) throw error;
-  return (data || []).map(mapRequestFromDB);
+  const rows = await selectAll('internal_requests');
+  return rows.map(mapRequestFromDB);
 }
 
 export async function loadClientPipelines() {
-  const { data, error } = await db('client_pipelines').select('*');
-  if (error) throw error;
-  return (data || []).map(mapPipelineFromDB);
+  const rows = await selectAll('client_pipelines');
+  return rows.map(mapPipelineFromDB);
 }
 
 // ============ LOAD ALL DATA ============
 export async function loadAllData() {
+  const safeAll = async <T>(p: Promise<T[]>): Promise<{ data: T[]; error: unknown | null }> => {
+    try {
+      return { data: await p, error: null };
+    } catch (error) {
+      return { data: [], error };
+    }
+  };
+
   const results = await Promise.all([
-    db('team_members').select('*'),
-    db('clients').select('*'),
-    db('tasks').select('*'),
-    db('leads').select('*'),
-    db('client_team_assignments').select('*'),
-    db('client_recurring_services').select('*'),
-    db('quote_requests').select('*'),
-    db('internal_requests').select('*'),
-    db('client_pipelines').select('*'),
-    db('onboarding_data').select('*'),
-    db('settings').select('*'),
-    db('productivity').select('*'),
-    db('profiles').select('name, active'),
-    db('client_dna').select('*'),
+    safeAll(selectAll('team_members')),
+    safeAll(selectAll('clients')),
+    safeAll(selectAll('tasks')),
+    safeAll(selectAll('leads')),
+    safeAll(selectAll('client_team_assignments')),
+    safeAll(selectAll('client_recurring_services')),
+    safeAll(selectAll('quote_requests')),
+    safeAll(selectAll('internal_requests')),
+    safeAll(selectAll('client_pipelines')),
+    safeAll(selectAll('onboarding_data')),
+    safeAll(selectAll('settings')),
+    safeAll(selectAll('productivity')),
+    safeAll(selectAll('profiles', 'name, active')),
+    safeAll(selectAll('client_dna')),
   ]);
 
   const [teamRes, clientsRes, tasksRes, leadsRes, assignmentsRes, servicesRes,
@@ -310,32 +327,32 @@ export async function loadAllData() {
     }
   }
 
-  const assignments = assignmentsRes.data || [];
-  const services = servicesRes.data || [];
+  const assignments = assignmentsRes.data;
+  const services = servicesRes.data;
 
   const activeProfileNames = new Set(
-    (profilesRes.data || [])
+    profilesRes.data
       .filter((p: any) => p.active)
       .map((p: any) => (p.name || '').toLowerCase())
   );
 
-  const allTeam = (teamRes.data || []).map(mapTeamFromDB);
+  const allTeam = teamRes.data.map(mapTeamFromDB);
   const activeTeam = allTeam.filter((m: TeamMember) => activeProfileNames.has(m.name.toLowerCase()));
 
   return {
     team: activeTeam,
-    clients: (clientsRes.data || []).map((row: any) => mapClientFromDB(row, assignments, services)),
-    tasks: (tasksRes.data || []).map(mapTaskFromDB),
-    leads: (leadsRes.data || []).map(mapLeadFromDB),
-    quoteRequests: (quotesRes.data || []).map(mapQuoteFromDB),
-    requests: (requestsRes.data || []).map(mapRequestFromDB),
-    clientPipelines: (pipelinesRes.data || []).map(mapPipelineFromDB),
-    onboardingData: (onboardingRes.data || []).map((row: any) => ({
+    clients: clientsRes.data.map((row: any) => mapClientFromDB(row, assignments, services)),
+    tasks: tasksRes.data.map(mapTaskFromDB),
+    leads: leadsRes.data.map(mapLeadFromDB),
+    quoteRequests: quotesRes.data.map(mapQuoteFromDB),
+    requests: requestsRes.data.map(mapRequestFromDB),
+    clientPipelines: pipelinesRes.data.map(mapPipelineFromDB),
+    onboardingData: onboardingRes.data.map((row: any) => ({
       clientId: row.client_id, checklist: row.checklist || {}, accessData: row.access_data || {},
     })),
-    settings: (settingsRes.data || []).map(mapSettingFromDB),
-    productivity: (prodRes.data || []).map(mapProductivityFromDB),
-    clientDna: (dnaRes.data || []).map((row: any) => ({
+    settings: settingsRes.data.map(mapSettingFromDB),
+    productivity: prodRes.data.map(mapProductivityFromDB),
+    clientDna: dnaRes.data.map((row: any) => ({
       clientId: row.client_id,
       links: row.links || [],
       notes: row.notes || {},
