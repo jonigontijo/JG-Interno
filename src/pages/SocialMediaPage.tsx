@@ -12,6 +12,8 @@ import {
   MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw
 } from "lucide-react";
 import OperationTaskList from "@/components/OperationTaskList";
+import RecordingsCalendar from "@/components/social/RecordingsCalendar";
+import DingyTabContainer from "@/components/social/DingyTabContainer";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -91,7 +93,7 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "briefings">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "dingy" | "briefings">("tasks");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -337,6 +339,7 @@ export default function SocialMediaPage() {
   const tabs = [
     { key: "tasks", label: "Tarefas", icon: FileText },
     { key: "calendar", label: "Calendário de Gravações", icon: CalendarIcon },
+    { key: "dingy", label: "Dingy", icon: Film },
     { key: "briefings", label: "Briefing Clientes", icon: ClipboardList },
   ];
 
@@ -509,6 +512,10 @@ export default function SocialMediaPage() {
         </div>
       )}
 
+      {/* Dingy Tab - mini-app integrado com sub-abas (Board, Calendário, Projetos, Equipe, Relatórios, Notificações, Configurações) */}
+      {activeTab === "dingy" && (
+        <DingyTabContainer />
+      )}
 
       {/* Briefing Clientes Tab */}
       {activeTab === "briefings" && (

@@ -96,17 +96,6 @@ export default function LoginPage() {
   };
 
   const toggleRegRole = (role: string) => {
-    // #region agent log
-    // eslint-disable-next-line no-console
-    console.log('[DBG H1] LoginPage.toggleRegRole click', { role, currentDesiredRoles: regForm.desiredRoles });
-    try {
-      fetch('http://127.0.0.1:7766/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'ca3c2f' },
-        body: JSON.stringify({ sessionId: 'ca3c2f', location: 'LoginPage.tsx:toggleRegRole', message: 'role click', data: { role, currentDesiredRoles: regForm.desiredRoles }, hypothesisId: 'H1', timestamp: Date.now() }),
-      }).catch(() => {});
-    } catch {}
-    // #endregion
     setRegForm(f => ({
       ...f,
       desiredRoles: f.desiredRoles.includes(role)

@@ -159,89 +159,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const email = `${user.username.toLowerCase()}@jg.internal`;
     const password = user.password || `${user.username}123`;
 
-    // #region agent log
-    const _caller = get().currentUser;
-    let _sessionInfo: any = null;
-    let _refreshedInfo: any = null;
-    let _localStorageInfo: any = null;
-    try {
-      const { data: sessRes } = await supabase.auth.getSession();
-      const sess = sessRes?.session;
-      const decodeJwtSub = (jwt?: string) => {
-        try {
-          if (!jwt) return null;
-          const part = jwt.split('.')[1];
-          const padded = part.replace(/-/g, '+').replace(/_/g, '/');
-          const json = JSON.parse(atob(padded));
-          return { sub: json.sub, email: json.email, exp: json.exp, iat: json.iat };
-        } catch (e: any) {
-          return { decodeError: e?.message };
-        }
-      };
-      _sessionInfo = {
-        hasSession: !!sess,
-        accessTokenLen: sess?.access_token?.length ?? 0,
-        accessTokenJwt: decodeJwtSub(sess?.access_token),
-        sessUserId: sess?.user?.id,
-        sessUserEmail: sess?.user?.email,
-      };
-
-      try {
-        const projectRef = (import.meta.env.VITE_SUPABASE_URL || '').match(/https:\/\/([^.]+)/)?.[1];
-        const lsKey = `sb-${projectRef}-auth-token`;
-        const lsRaw = localStorage.getItem(lsKey);
-        if (lsRaw) {
-          const ls = JSON.parse(lsRaw);
-          _localStorageInfo = {
-            lsKey,
-            tokenJwt: decodeJwtSub(ls?.access_token),
-            userIdInLs: ls?.user?.id,
-            userEmailInLs: ls?.user?.email,
-            sameAsCurrentUser: ls?.user?.id === _caller?.authId,
-          };
-        } else {
-          _localStorageInfo = { lsKey, missing: true };
-        }
-      } catch (e: any) {
-        _localStorageInfo = { lsError: e?.message };
-      }
-
-      try {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        _refreshedInfo = {
-          hasRefreshed: !!refreshed?.session,
-          tokenJwt: decodeJwtSub(refreshed?.session?.access_token),
-          refreshedUserId: refreshed?.session?.user?.id,
-          refreshedUserEmail: refreshed?.session?.user?.email,
-        };
-      } catch (e: any) {
-        _refreshedInfo = { refreshError: e?.message };
-      }
-    } catch (e: any) {
-      _sessionInfo = { probeError: e?.message };
-    }
-    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e62233' },
-      body: JSON.stringify({
-        sessionId: 'e62233',
-        location: 'useAuthStore.ts:addUser:entry',
-        message: 'addUser called - identity probe',
-        data: {
-          email,
-          username: user.username,
-          newUserName: user.name,
-          callerStore: { id: _caller?.authId, username: _caller?.username, isAdmin: _caller?.isAdmin },
-          sessionFromGetSession: _sessionInfo,
-          sessionFromLocalStorage: _localStorageInfo,
-          sessionAfterRefresh: _refreshedInfo,
-        },
-        hypothesisId: 'H_SESSION_MISMATCH',
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-update-user', {
       body: {
         action: 'create',
@@ -259,7 +176,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     });
 
     if (fnError || fnData?.error) {
-      // #region agent log
       let _httpStatus: number | undefined;
       let _httpBodyText: string | undefined;
       let _httpBodyJson: any;
@@ -274,50 +190,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       } catch (e: any) {
         _httpBodyText = `[failed to read context: ${e?.message}]`;
       }
-      fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e62233' },
-        body: JSON.stringify({
-          sessionId: 'e62233',
-          location: 'useAuthStore.ts:addUser:error',
-          message: 'edge function returned error',
-          data: {
-            fnErrorName: (fnError as any)?.name,
-            fnErrorMessage: fnError?.message,
-            fnDataError: fnData?.error,
-            fnDataKeys: fnData ? Object.keys(fnData) : null,
-            httpStatus: _httpStatus,
-            httpBodyText: _httpBodyText,
-            httpBodyJson: _httpBodyJson,
-          },
-          hypothesisId: 'H1,H2,H3,H4,H5',
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       const realServerError = _httpBodyJson?.error || _httpBodyText;
       const errMsg = fnData?.error || realServerError || fnError?.message || 'Erro desconhecido';
       console.error('Error creating user:', errMsg, { httpStatus: _httpStatus, body: _httpBodyText });
       toast.error(`Erro ao criar usuário: ${errMsg}`);
       return false;
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7457/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e62233' },
-      body: JSON.stringify({
-        sessionId: 'e62233',
-        location: 'useAuthStore.ts:addUser:success',
-        message: 'edge function returned success',
-        data: {
-          newUserId: fnData?.user?.id,
-          reactivated: !!fnData?.reactivated,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     if (user.recoveryEmail && fnData?.user?.id) {
       await db('profiles').update({ recovery_email: user.recoveryEmail }).eq('id', fnData.user.id);
