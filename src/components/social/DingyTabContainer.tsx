@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   LayoutGrid, Calendar as CalendarIcon, FolderKanban, Users,
   BarChart3, Bell, Settings as SettingsIcon, Flame, ChevronLeft, ChevronRight,
-  ChevronDown, HandHelping, Send,
+  ChevronDown, HandHelping, Send, X, Flag, User as UserIcon, Calendar as CalIcon,
+  Clock, FileText, CheckSquare, MessageSquare, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
@@ -12,6 +13,11 @@ import {
   listHelpRequests, createHelpRequest, acceptHelpRequest,
   markHelpDone, cancelHelpRequest, type DingyHelpRequest,
 } from "@/lib/dingyHelp";
+import {
+  listChecklist, addChecklistItem, toggleChecklistItem, deleteChecklistItem,
+  listComments, addComment,
+  type DingyChecklistItem, type DingyTaskComment,
+} from "@/lib/dingyTaskExtras";
 import { supabase } from "@/integrations/supabase/client";
 import RecordingsCalendar from "./RecordingsCalendar";
 
@@ -272,6 +278,11 @@ function BoardView({
   currentUserName?: string;
 }) {
   const updateTask = useAppStore((s) => s.updateTask);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) || null : null),
+    [tasks, selectedTaskId]
+  );
 
   const onMoveTask = (
     taskId: string,
@@ -383,9 +394,19 @@ function BoardView({
             approval={cols.approval}
             isCurrent={assignee === currentUserName}
             onMoveTask={onMoveTask}
+            onSelectTask={setSelectedTaskId}
           />
         ))}
       </div>
+
+      {selectedTask && (
+        <TaskDetailDrawer
+          task={selectedTask}
+          team={team}
+          currentUserName={currentUserName || ""}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -404,6 +425,7 @@ function UserColumn({
   approval,
   isCurrent,
   onMoveTask,
+  onSelectTask,
 }: {
   assignee: string;
   todo: any[];
@@ -411,6 +433,7 @@ function UserColumn({
   approval: any[];
   isCurrent: boolean;
   onMoveTask: MoveHandler;
+  onSelectTask: (id: string) => void;
 }) {
   const total = todo.length + doing.length + approval.length;
   return (
@@ -440,9 +463,9 @@ function UserColumn({
       </header>
 
       <div className="flex-1 p-3 space-y-4 overflow-y-auto" style={{ maxHeight: 560 }}>
-        <ColumnSection label="A FAZER" col="todo" count={todo.length} dotColor={T.fgMuted} tasks={todo} assignee={assignee} onMoveTask={onMoveTask} />
-        <ColumnSection label="EM ANDAMENTO" col="doing" count={doing.length} dotColor={T.info} tasks={doing} assignee={assignee} onMoveTask={onMoveTask} />
-        <ColumnSection label="APROVAÇÃO" col="approval" count={approval.length} dotColor={T.purple} tasks={approval} assignee={assignee} onMoveTask={onMoveTask} />
+        <ColumnSection label="A FAZER" col="todo" count={todo.length} dotColor={T.fgMuted} tasks={todo} assignee={assignee} onMoveTask={onMoveTask} onSelectTask={onSelectTask} />
+        <ColumnSection label="EM ANDAMENTO" col="doing" count={doing.length} dotColor={T.info} tasks={doing} assignee={assignee} onMoveTask={onMoveTask} onSelectTask={onSelectTask} />
+        <ColumnSection label="APROVAÇÃO" col="approval" count={approval.length} dotColor={T.purple} tasks={approval} assignee={assignee} onMoveTask={onMoveTask} onSelectTask={onSelectTask} />
       </div>
     </section>
   );
@@ -456,6 +479,7 @@ function ColumnSection({
   tasks,
   assignee,
   onMoveTask,
+  onSelectTask,
 }: {
   label: string;
   col: DingyCol;
@@ -464,6 +488,7 @@ function ColumnSection({
   tasks: any[];
   assignee: string;
   onMoveTask: MoveHandler;
+  onSelectTask: (id: string) => void;
 }) {
   const [hover, setHover] = useState(false);
 
@@ -510,7 +535,7 @@ function ColumnSection({
       )}
       <div className="space-y-2">
         {tasks.map((t) => (
-          <TaskCard key={t.id} task={t} fromCol={col} fromAssignee={assignee} />
+          <TaskCard key={t.id} task={t} fromCol={col} fromAssignee={assignee} onSelect={onSelectTask} />
         ))}
       </div>
     </div>
@@ -527,16 +552,19 @@ function TaskCard({
   task,
   fromCol,
   fromAssignee,
+  onSelect,
 }: {
   task: any;
   fromCol: DingyCol;
   fromAssignee: string;
+  onSelect: (id: string) => void;
 }) {
   const urgencyColor = URGENCY_COLOR[task.urgency] || T.fgMuted;
   const dueDate = task.deadline ? new Date(task.deadline).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
   const [dragging, setDragging] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const dragMoved = useRef(false);
 
   const updateTask = useAppStore((s) => s.updateTask);
   const currentUserName = useAuthStore((s) => s.currentUser?.name) || "Sistema";
@@ -563,8 +591,19 @@ function TaskCard({
     e.dataTransfer.setData(DRAG_MIME, payload);
     e.dataTransfer.effectAllowed = "move";
     setDragging(true);
+    dragMoved.current = true;
   };
   const onDragEnd = () => setDragging(false);
+
+  const onCardClick = (e: React.MouseEvent<HTMLElement>) => {
+    if (dragMoved.current) {
+      dragMoved.current = false;
+      return;
+    }
+    const target = e.target as HTMLElement;
+    if (target.closest("button, select, [role='menu'], [data-no-select]")) return;
+    onSelect(task.id);
+  };
 
   const moveTo = (col: DingyCol) => {
     setShowStatusMenu(false);
@@ -604,7 +643,8 @@ function TaskCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className="rounded-lg p-3 text-sm cursor-grab active:cursor-grabbing select-none"
+      onClick={onCardClick}
+      className="rounded-lg p-3 text-sm cursor-pointer select-none transition-colors"
       style={{
         background: T.card,
         border: `1px solid ${T.border}`,
@@ -1219,6 +1259,427 @@ function Swatch({ color, label }: { color: string; label: string }) {
     <div className="flex flex-col items-center gap-1">
       <div className="h-10 w-10 rounded-lg" style={{ background: color, border: `1px solid ${T.border}` }} />
       <span className="text-[10px]" style={{ color: T.fgDim }}>{label}</span>
+    </div>
+  );
+}
+
+// ============================================================
+// Task Detail Drawer (painel lateral ao clicar num card do Board)
+// ============================================================
+function TaskDetailDrawer({
+  task,
+  team,
+  currentUserName,
+  onClose,
+}: {
+  task: any;
+  team: any[];
+  currentUserName: string;
+  onClose: () => void;
+}) {
+  const updateTask = useAppStore((s) => s.updateTask);
+  const [desc, setDesc] = useState<string>(task.description || "");
+  const [items, setItems] = useState<DingyChecklistItem[]>([]);
+  const [comments, setComments] = useState<DingyTaskComment[]>([]);
+  const [newItem, setNewItem] = useState("");
+  const [newComment, setNewComment] = useState("");
+  const [helpSending, setHelpSending] = useState(false);
+
+  // Reset description quando troca de task
+  useEffect(() => {
+    setDesc(task.description || "");
+  }, [task.id]);
+
+  // Persistência da descrição com debounce
+  useEffect(() => {
+    if (desc === (task.description || "")) return;
+    const t = setTimeout(() => {
+      updateTask(task.id, { description: desc });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [desc, task.id]);
+
+  // Carga e realtime de checklist + comentários
+  const reloadChecklist = async () => {
+    try { setItems(await listChecklist(task.id)); } catch { /* noop */ }
+  };
+  const reloadComments = async () => {
+    try { setComments(await listComments(task.id)); } catch { /* noop */ }
+  };
+
+  useEffect(() => {
+    reloadChecklist();
+    reloadComments();
+    const ch = (supabase as any)
+      .channel(`dingy-task-${task.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "dingy_task_checklist", filter: `task_id=eq.${task.id}` },
+        () => reloadChecklist(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "dingy_task_comments", filter: `task_id=eq.${task.id}` },
+        () => reloadComments(),
+      )
+      .subscribe();
+    return () => {
+      try { (supabase as any).removeChannel(ch); } catch { /* noop */ }
+    };
+  }, [task.id]);
+
+  // Fecha com ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const urgencyColor = URGENCY_COLOR[task.urgency] || T.fgMuted;
+  const dingyCol = toDingyColumn(task.status);
+
+  const addItem = async () => {
+    const text = newItem.trim();
+    if (!text) return;
+    try {
+      await addChecklistItem(task.id, text, items.length);
+      setNewItem("");
+    } catch (err: any) {
+      toast.error("Erro ao adicionar item: " + (err?.message || err));
+    }
+  };
+  const submitComment = async () => {
+    const body = newComment.trim();
+    if (!body) return;
+    try {
+      await addComment(task.id, currentUserName || "Anônimo", body);
+      setNewComment("");
+    } catch (err: any) {
+      toast.error("Erro ao comentar: " + (err?.message || err));
+    }
+  };
+  const helpWithTask = async () => {
+    if (helpSending) return;
+    setHelpSending(true);
+    try {
+      await createHelpRequest({
+        taskId: task.id,
+        taskTitle: task.title || "(sem título)",
+        taskClient: task.client || "",
+        requesterName: currentUserName || "Anônimo",
+        message: "",
+      });
+      toast.success("Pedido de ajuda enviado para a equipe.");
+    } catch (err: any) {
+      toast.error("Falha ao enviar pedido: " + (err?.message || err));
+    } finally {
+      setHelpSending(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex justify-end"
+      onClick={onClose}
+      style={{ background: "rgba(0,0,0,0.55)" }}
+    >
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className="h-full w-full max-w-[540px] flex flex-col"
+        style={{ background: T.bg, color: T.fg, borderLeft: `1px solid ${T.border}` }}
+      >
+        {/* Header */}
+        <header
+          className="flex items-center justify-between px-5 py-3 sticky top-0"
+          style={{ background: T.bg, borderBottom: `1px solid ${T.border}` }}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center text-[10px] font-semibold px-2 py-1 rounded uppercase"
+              style={{
+                background: urgencyColor + "22",
+                color: urgencyColor,
+                border: `1px solid ${urgencyColor}44`,
+              }}
+            >
+              {URGENCY_LABEL[task.urgency] || task.urgency || "—"}
+            </span>
+            <select
+              value={dingyCol}
+              onChange={(e) => {
+                const next = e.target.value as DingyCol;
+                const newStatus = statusForDingyColumn(next, task.status);
+                if (newStatus !== task.status) updateTask(task.id, { status: newStatus });
+              }}
+              className="h-8 px-2 rounded-md text-xs"
+              style={{ background: T.card, color: T.fg, border: `1px solid ${T.border}` }}
+            >
+              <option value="todo">A Fazer</option>
+              <option value="doing">Em Andamento</option>
+              <option value="approval">Aprovação</option>
+            </select>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-md flex items-center justify-center"
+            style={{ color: T.fgMuted }}
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        {/* Conteúdo */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Título */}
+          <h2 className="text-2xl font-semibold" style={{ color: T.fg }}>{task.title}</h2>
+          {task.client && (
+            <p className="text-xs" style={{ color: T.fgDim }}>{task.client}</p>
+          )}
+
+          {/* Grid de metadados */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <Field icon={<UserIcon className="h-3.5 w-3.5" />} label="Responsável">
+              <select
+                value={task.assignee || ""}
+                onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
+                className="w-full h-8 px-2 rounded-md text-sm"
+                style={{ background: T.card, color: T.fg, border: `1px solid ${T.border}` }}
+              >
+                <option value="">— sem responsável —</option>
+                {team.map((m) => (
+                  <option key={m.id || m.name} value={m.name}>{m.name}</option>
+                ))}
+              </select>
+            </Field>
+
+            <Field icon={<Flag className="h-3.5 w-3.5" />} label="Prioridade">
+              <select
+                value={task.urgency || "normal"}
+                onChange={(e) => updateTask(task.id, { urgency: e.target.value as any })}
+                className="w-full h-8 px-2 rounded-md text-sm"
+                style={{ background: T.card, color: T.fg, border: `1px solid ${T.border}` }}
+              >
+                <option value="normal">Normal</option>
+                <option value="priority">Média</option>
+                <option value="urgent">Alta</option>
+                <option value="critical">Crítica</option>
+              </select>
+            </Field>
+
+            <Field icon={<CalIcon className="h-3.5 w-3.5" />} label="Início">
+              <p className="text-sm h-8 flex items-center" style={{ color: T.fg }}>
+                {task.startedAt
+                  ? new Date(task.startedAt).toLocaleDateString("pt-BR")
+                  : task.createdAt
+                    ? new Date(task.createdAt).toLocaleDateString("pt-BR")
+                    : "—"}
+              </p>
+            </Field>
+
+            <Field icon={<Clock className="h-3.5 w-3.5" />} label="Prazo">
+              <input
+                type="date"
+                value={task.deadline ? task.deadline.slice(0, 10) : ""}
+                onChange={(e) => updateTask(task.id, { deadline: e.target.value })}
+                className="w-full h-8 px-2 rounded-md text-sm"
+                style={{ background: T.card, color: T.fg, border: `1px solid ${T.border}` }}
+              />
+            </Field>
+          </div>
+
+          {/* Descrição */}
+          <section>
+            <SectionLabel icon={<FileText className="h-3.5 w-3.5" />}>Descrição</SectionLabel>
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="Clique para adicionar uma descrição..."
+              rows={4}
+              className="w-full p-3 rounded-md text-sm resize-y"
+              style={{
+                background: T.card,
+                color: T.fg,
+                border: `1px solid ${T.border}`,
+                outline: "none",
+              }}
+            />
+          </section>
+
+          {/* Checklist */}
+          <section>
+            <SectionLabel icon={<CheckSquare className="h-3.5 w-3.5" />}>
+              Checklist {items.length > 0 && (
+                <span style={{ color: T.fgDim }}>
+                  ({items.filter((i) => i.done).length}/{items.length})
+                </span>
+              )}
+            </SectionLabel>
+            <div className="space-y-1.5">
+              {items.map((it) => (
+                <div
+                  key={it.id}
+                  className="flex items-center gap-2 group rounded-md px-2 py-1.5"
+                  style={{ background: T.card, border: `1px solid ${T.border}` }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={it.done}
+                    onChange={(e) => toggleChecklistItem(it.id, e.target.checked).catch(() => {})}
+                    className="h-4 w-4 cursor-pointer shrink-0"
+                    style={{ accentColor: T.primary }}
+                  />
+                  <span
+                    className="flex-1 text-sm break-words"
+                    style={{
+                      color: it.done ? T.fgDim : T.fg,
+                      textDecoration: it.done ? "line-through" : "none",
+                    }}
+                  >
+                    {it.text}
+                  </span>
+                  <button
+                    onClick={() => deleteChecklistItem(it.id).catch(() => {})}
+                    className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded transition-opacity"
+                    style={{ color: T.fgDim }}
+                    aria-label="Remover"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              <div
+                className="flex items-center gap-2 rounded-md px-2 py-1.5"
+                style={{ background: T.card, border: `1px solid ${T.border}` }}
+              >
+                <input
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addItem();
+                    }
+                  }}
+                  placeholder="Adicionar item..."
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: T.fg }}
+                />
+                <button
+                  onClick={addItem}
+                  className="h-7 w-7 flex items-center justify-center rounded-md text-xs font-bold"
+                  style={{ background: T.primary, color: T.primaryFg }}
+                  aria-label="Adicionar"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Comentários */}
+          <section>
+            <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5" />}>
+              Comentários ({comments.length})
+            </SectionLabel>
+            <div className="space-y-2">
+              {comments.map((c) => (
+                <article
+                  key={c.id}
+                  className="rounded-md p-3"
+                  style={{ background: T.card, border: `1px solid ${T.border}` }}
+                >
+                  <div className="flex items-baseline justify-between gap-2 mb-1">
+                    <span className="text-xs font-semibold" style={{ color: T.fg }}>{c.author_name}</span>
+                    <span className="text-[10px]" style={{ color: T.fgDim }}>
+                      {new Date(c.created_at).toLocaleString("pt-BR", {
+                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: T.fg }}>{c.body}</p>
+                </article>
+              ))}
+              <div
+                className="flex items-center gap-2 rounded-md px-2 py-1.5"
+                style={{ background: T.card, border: `1px solid ${T.border}` }}
+              >
+                <input
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      submitComment();
+                    }
+                  }}
+                  placeholder="Escrever comentário..."
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: T.fg }}
+                />
+                <button
+                  onClick={submitComment}
+                  className="h-7 w-7 flex items-center justify-center rounded-md"
+                  style={{ background: T.primary, color: T.primaryFg }}
+                  aria-label="Enviar"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Footer: Ajudar com esta tarefa */}
+        <footer
+          className="px-5 py-3 sticky bottom-0"
+          style={{ background: T.bg, borderTop: `1px solid ${T.border}` }}
+        >
+          <button
+            onClick={helpWithTask}
+            disabled={helpSending}
+            className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-lg text-sm font-semibold transition-colors"
+            style={{
+              background: helpSending ? T.card : T.primary,
+              color: helpSending ? T.fgMuted : T.primaryFg,
+            }}
+          >
+            <HandHelping className="h-4 w-4" />
+            {helpSending ? "Enviando..." : "Pedir ajuda com esta tarefa"}
+          </button>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function Field({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1" style={{ color: T.fgMuted }}>
+        {icon}
+        <span className="text-[10px] font-semibold uppercase tracking-wider">{label}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SectionLabel({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 mb-2" style={{ color: T.fgMuted }}>
+      {icon}
+      <span className="text-[10px] font-semibold uppercase tracking-wider">{children}</span>
     </div>
   );
 }
