@@ -735,6 +735,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           recurUntil: task.recurUntil,
           recurType: task.recurType,
           recurDaysInterval: task.recurDaysInterval,
+          createdBy: task.createdBy,
         };
         set((s) => ({ tasks: [...s.tasks, recurTask] }));
         const mapped = mapTaskToDB(recurTask);
