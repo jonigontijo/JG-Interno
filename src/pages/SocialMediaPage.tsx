@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   Plus, Calendar as CalendarIcon, Film, CheckCircle, AlertTriangle, FileText,
   ChevronLeft, ChevronRight, Bell, Users, BarChart3, HandHelping, Eye, Upload,
-  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw
+  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw, Pencil, Save
 } from "lucide-react";
 import OperationTaskList from "@/components/OperationTaskList";
 import RecordingsCalendar from "@/components/social/RecordingsCalendar";
@@ -57,6 +57,38 @@ interface ClientBriefing {
   created_at: string;
 }
 
+type BriefingEditableKey = keyof Omit<ClientBriefing, "id" | "status" | "created_at">;
+
+const BRIEFING_FIELD_DEFS: { key: BriefingEditableKey; label: string; isLink?: boolean; multiline?: boolean; required?: boolean }[] = [
+  { key: "nome_marca", label: "Nome da Marca", required: true },
+  { key: "site_link", label: "Site", isLink: true },
+  { key: "historia_marca", label: "História da Marca", multiline: true },
+  { key: "produtos_servicos", label: "Produtos / Serviços", multiline: true },
+  { key: "diferenciais", label: "Diferenciais", multiline: true },
+  { key: "dores_resultados", label: "Dores e Resultados", multiline: true },
+  { key: "perfil_cliente_atual", label: "Perfil do Cliente Atual", multiline: true },
+  { key: "cliente_ideal", label: "Cliente Ideal", multiline: true },
+  { key: "meta_principal", label: "Meta Principal", multiline: true },
+  { key: "acao_desejada", label: "Ação Desejada", multiline: true },
+  { key: "metrica_36meses", label: "Métrica 36 Meses", multiline: true },
+  { key: "percepcao_marca", label: "Percepção da Marca", multiline: true },
+  { key: "tom_de_voz", label: "Tom de Voz", multiline: true },
+  { key: "referencia_conteudo", label: "Referência de Conteúdo", multiline: true },
+  { key: "estilo_nao_gosta", label: "Estilo que Não Gosta", multiline: true },
+  { key: "fotos_link", label: "Link das Fotos", isLink: true },
+  { key: "videos_link", label: "Link dos Vídeos", isLink: true },
+  { key: "disponibilidade_gravacao", label: "Disponibilidade para Gravação", multiline: true },
+  { key: "estilo_video", label: "Estilo de Vídeo", multiline: true },
+  { key: "escopo_entrega", label: "Escopo de Entrega", multiline: true },
+  { key: "objetivo_mes", label: "Objetivo do Mês", multiline: true },
+  { key: "foco_15dias", label: "Foco 15 Dias", multiline: true },
+  { key: "duvida_cliente", label: "Dúvida do Cliente", multiline: true },
+  { key: "objetivo_cliente", label: "Objetivo do Cliente", multiline: true },
+  { key: "links_videos_referencia", label: "Links Vídeos Referência", isLink: true },
+  { key: "comunicacao_videos", label: "Comunicação dos Vídeos", multiline: true },
+  { key: "restricoes", label: "Restrições", multiline: true },
+];
+
 const postStatuses = ["Pauta", "Roteiro", "Gravação", "Edição", "Design", "Aprovação", "Aprovado", "Publicado"];
 
 interface ClientPostTracking {
@@ -103,6 +135,9 @@ export default function SocialMediaPage() {
   const [briefings, setBriefings] = useState<ClientBriefing[]>([]);
   const [briefingsLoading, setBriefingsLoading] = useState(false);
   const [selectedBriefing, setSelectedBriefing] = useState<ClientBriefing | null>(null);
+  const [briefingEditMode, setBriefingEditMode] = useState(false);
+  const [briefingDraft, setBriefingDraft] = useState<Record<BriefingEditableKey, string>>({} as Record<BriefingEditableKey, string>);
+  const [briefingSaving, setBriefingSaving] = useState(false);
   const [briefingSearch, setBriefingSearch] = useState("");
 
   const loadBriefings = async () => {
@@ -161,9 +196,65 @@ export default function SocialMediaPage() {
       if (error) throw error;
       setBriefings(prev => prev.filter(b => b.id !== id));
       setSelectedBriefing(null);
+      setBriefingEditMode(false);
       toast.success("Briefing excluído");
     } catch (err: any) {
       toast.error("Erro ao excluir: " + err.message);
+    }
+  };
+
+  const openBriefing = (briefing: ClientBriefing) => {
+    setSelectedBriefing(briefing);
+    setBriefingEditMode(false);
+  };
+
+  const closeBriefing = () => {
+    setSelectedBriefing(null);
+    setBriefingEditMode(false);
+  };
+
+  const startBriefingEdit = (briefing: ClientBriefing) => {
+    setSelectedBriefing(briefing);
+    const draft = {} as Record<BriefingEditableKey, string>;
+    for (const { key } of BRIEFING_FIELD_DEFS) {
+      draft[key] = briefing[key] ?? "";
+    }
+    setBriefingDraft(draft);
+    setBriefingEditMode(true);
+  };
+
+  const saveBriefing = async () => {
+    if (!selectedBriefing) return;
+    if (!briefingDraft.nome_marca?.trim()) {
+      toast.error("Nome da marca é obrigatório");
+      return;
+    }
+    setBriefingSaving(true);
+    try {
+      const payload: Record<BriefingEditableKey, string | null> = {} as Record<BriefingEditableKey, string | null>;
+      for (const { key } of BRIEFING_FIELD_DEFS) {
+        const value = briefingDraft[key]?.trim();
+        payload[key] = value || null;
+      }
+      payload.nome_marca = briefingDraft.nome_marca.trim();
+
+      const { data, error } = await (supabase as any)
+        .from("client_briefings")
+        .update(payload)
+        .eq("id", selectedBriefing.id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      const updated = data as ClientBriefing;
+      setBriefings(prev => prev.map(b => b.id === updated.id ? updated : b));
+      setSelectedBriefing(updated);
+      setBriefingEditMode(false);
+      toast.success("Briefing atualizado");
+    } catch (err: any) {
+      toast.error("Erro ao salvar briefing: " + err.message);
+    } finally {
+      setBriefingSaving(false);
     }
   };
 
@@ -588,11 +679,18 @@ export default function SocialMediaPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => setSelectedBriefing(briefing)}
+                            onClick={() => openBriefing(briefing)}
                             className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                             title="Ver detalhes"
                           >
                             <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => startBriefingEdit(briefing)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => {
@@ -616,39 +714,16 @@ export default function SocialMediaPage() {
 
       {/* Briefing Detail Modal */}
       {selectedBriefing && (() => {
-        const fields: { label: string; value: string | null; isLink?: boolean }[] = [
-          { label: "Nome da Marca", value: selectedBriefing.nome_marca },
-          { label: "Site", value: selectedBriefing.site_link, isLink: true },
-          { label: "História da Marca", value: selectedBriefing.historia_marca },
-          { label: "Produtos / Serviços", value: selectedBriefing.produtos_servicos },
-          { label: "Diferenciais", value: selectedBriefing.diferenciais },
-          { label: "Dores e Resultados", value: selectedBriefing.dores_resultados },
-          { label: "Perfil do Cliente Atual", value: selectedBriefing.perfil_cliente_atual },
-          { label: "Cliente Ideal", value: selectedBriefing.cliente_ideal },
-          { label: "Meta Principal", value: selectedBriefing.meta_principal },
-          { label: "Ação Desejada", value: selectedBriefing.acao_desejada },
-          { label: "Métrica 36 Meses", value: selectedBriefing.metrica_36meses },
-          { label: "Percepção da Marca", value: selectedBriefing.percepcao_marca },
-          { label: "Tom de Voz", value: selectedBriefing.tom_de_voz },
-          { label: "Referência de Conteúdo", value: selectedBriefing.referencia_conteudo },
-          { label: "Estilo que Não Gosta", value: selectedBriefing.estilo_nao_gosta },
-          { label: "Link das Fotos", value: selectedBriefing.fotos_link, isLink: true },
-          { label: "Link dos Vídeos", value: selectedBriefing.videos_link, isLink: true },
-          { label: "Disponibilidade para Gravação", value: selectedBriefing.disponibilidade_gravacao },
-          { label: "Estilo de Vídeo", value: selectedBriefing.estilo_video },
-          { label: "Escopo de Entrega", value: selectedBriefing.escopo_entrega },
-          { label: "Objetivo do Mês", value: selectedBriefing.objetivo_mes },
-          { label: "Foco 15 Dias", value: selectedBriefing.foco_15dias },
-          { label: "Dúvida do Cliente", value: selectedBriefing.duvida_cliente },
-          { label: "Objetivo do Cliente", value: selectedBriefing.objetivo_cliente },
-          { label: "Links Vídeos Referência", value: selectedBriefing.links_videos_referencia, isLink: true },
-          { label: "Comunicação dos Vídeos", value: selectedBriefing.comunicacao_videos },
-          { label: "Restrições", value: selectedBriefing.restricoes },
-        ];
-        const filledFields = fields.filter(f => f.value && f.value.trim());
+        const viewFields = BRIEFING_FIELD_DEFS
+          .map(({ key, label, isLink }) => ({ label, value: selectedBriefing[key], isLink }))
+          .filter(f => f.value && f.value.trim());
 
         return (
-          <Modal open={!!selectedBriefing} onClose={() => setSelectedBriefing(null)} title={`Briefing - ${selectedBriefing.nome_marca}`}>
+          <Modal
+            open={!!selectedBriefing}
+            onClose={closeBriefing}
+            title={`Briefing - ${briefingEditMode ? briefingDraft.nome_marca || selectedBriefing.nome_marca : selectedBriefing.nome_marca}`}
+          >
             <div className="space-y-3 max-h-[70vh] overflow-y-auto">
               <div className="flex items-center gap-2 mb-2">
                 <span className={cn(
@@ -668,40 +743,100 @@ export default function SocialMediaPage() {
                 </span>
               </div>
 
-              {filledFields.map((field, i) => (
-                <div key={i} className="p-3 rounded-md border bg-muted/20">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">{field.label}</p>
-                  {field.isLink && field.value ? (
-                    <a href={field.value.startsWith("http") ? field.value : `https://${field.value}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all flex items-center gap-1">
-                      {field.value} <ExternalLink className="w-3 h-3 shrink-0" />
-                    </a>
-                  ) : (
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{field.value}</p>
-                  )}
-                </div>
-              ))}
+              {briefingEditMode ? (
+                BRIEFING_FIELD_DEFS.map(({ key, label, multiline, required }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground font-medium">
+                      {label}{required ? " *" : ""}
+                    </label>
+                    {multiline ? (
+                      <textarea
+                        value={briefingDraft[key] ?? ""}
+                        onChange={(e) => setBriefingDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground resize-y min-h-[72px]"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={briefingDraft[key] ?? ""}
+                        onChange={(e) => setBriefingDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground placeholder:text-muted-foreground"
+                      />
+                    )}
+                  </div>
+                ))
+              ) : viewFields.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Nenhum campo preenchido ainda.</p>
+              ) : (
+                viewFields.map((field, i) => (
+                  <div key={i} className="p-3 rounded-md border bg-muted/20">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{field.label}</p>
+                    {field.isLink && field.value ? (
+                      <a href={field.value.startsWith("http") ? field.value : `https://${field.value}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all flex items-center gap-1">
+                        {field.value} <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    ) : (
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{field.value}</p>
+                    )}
+                  </div>
+                ))
+              )}
 
               <div className="flex gap-2 justify-between pt-3 border-t">
-                <div className="flex gap-1.5">
-                  {selectedBriefing.status !== "reviewed" && (
-                    <button onClick={() => updateBriefingStatus(selectedBriefing.id, "reviewed")} className="px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
-                      Marcar Revisado
+                {briefingEditMode ? (
+                  <>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={saveBriefing}
+                        disabled={briefingSaving}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        {briefingSaving ? "Salvando..." : "Salvar"}
+                      </button>
+                      <button
+                        onClick={() => setBriefingEditMode(false)}
+                        disabled={briefingSaving}
+                        className="px-3 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    <button onClick={closeBriefing} className="px-4 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      Fechar
                     </button>
-                  )}
-                  {selectedBriefing.status !== "approved" && (
-                    <button onClick={() => updateBriefingStatus(selectedBriefing.id, "approved")} className="px-3 py-1.5 rounded-md bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors">
-                      Aprovar
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        onClick={() => startBriefingEdit(selectedBriefing)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      {selectedBriefing.status !== "reviewed" && (
+                        <button onClick={() => updateBriefingStatus(selectedBriefing.id, "reviewed")} className="px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors">
+                          Marcar Revisado
+                        </button>
+                      )}
+                      {selectedBriefing.status !== "approved" && (
+                        <button onClick={() => updateBriefingStatus(selectedBriefing.id, "approved")} className="px-3 py-1.5 rounded-md bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors">
+                          Aprovar
+                        </button>
+                      )}
+                      {selectedBriefing.status !== "archived" && (
+                        <button onClick={() => updateBriefingStatus(selectedBriefing.id, "archived")} className="px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
+                          Arquivar
+                        </button>
+                      )}
+                    </div>
+                    <button onClick={closeBriefing} className="px-4 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      Fechar
                     </button>
-                  )}
-                  {selectedBriefing.status !== "archived" && (
-                    <button onClick={() => updateBriefingStatus(selectedBriefing.id, "archived")} className="px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors">
-                      Arquivar
-                    </button>
-                  )}
-                </div>
-                <button onClick={() => setSelectedBriefing(null)} className="px-4 py-1.5 rounded-md border text-xs text-muted-foreground hover:text-foreground transition-colors">
-                  Fechar
-                </button>
+                  </>
+                )}
               </div>
             </div>
           </Modal>
