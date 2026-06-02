@@ -7,7 +7,7 @@ import { useAuthStore } from "./useAuthStore";
 
 export type {
   QuoteRequest, InternalRequest, ProductivityRecord, SettingItem,
-  OnboardingData, ClientDnaLink, ClientDnaCredential, ClientDnaDate,
+  OnboardingData, ClientDnaLink, ClientDnaCredential, ClientDnaDate, ClientDnaFile,
   ClientDna, ClientPipelineState, AppState,
   Client, Task, Lead, TeamMember, RecurringService, ClientTeamAssignment,
 } from "./types";
@@ -1100,7 +1100,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   getClientDna: (clientId) => {
-    return get().clientDna.find((d) => d.clientId === clientId) || { clientId, links: [], notes: {}, credentials: [], importantDates: [] };
+    return get().clientDna.find((d) => d.clientId === clientId) || { clientId, links: [], notes: {}, credentials: [], importantDates: [], files: [] };
   },
 
   updateClientDna: (clientId, data) => {
@@ -1109,7 +1109,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       if (existing) {
         return { clientDna: s.clientDna.map((d) => d.clientId === clientId ? { ...d, ...data } : d) };
       }
-      return { clientDna: [...s.clientDna, { clientId, links: [], notes: {}, credentials: [], importantDates: [], ...data }] };
+      return { clientDna: [...s.clientDna, { clientId, links: [], notes: {}, credentials: [], importantDates: [], files: [], ...data }] };
     });
     const dna = get().clientDna.find(d => d.clientId === clientId);
     if (dna) {
@@ -1119,6 +1119,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         notes: dna.notes,
         credentials: dna.credentials,
         important_dates: dna.importantDates,
+        files: dna.files,
       }).then(({ error }: any) => {
         if (error) console.error('Error saving client DNA:', error);
       });

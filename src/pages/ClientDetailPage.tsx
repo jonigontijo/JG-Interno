@@ -1,17 +1,19 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { useAppStore, QuoteRequest, type ClientDnaLink, type ClientDnaCredential, type ClientDnaDate } from "@/store/useAppStore";
+import { useState, useRef } from "react";
+import { useAppStore, QuoteRequest, type ClientDnaLink, type ClientDnaCredential, type ClientDnaDate, type ClientDnaFile } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { formatCurrency, RecurringService } from "@/data/mockData";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
 import Modal from "@/components/Modal";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   ArrowLeft, FileText, DollarSign, CheckCircle, Clock,
   Plus, Send, CreditCard, AlertTriangle, Briefcase, Trash2, Edit2, X,
   Users, Play, Square, RefreshCw, Zap, Star, Shield,
-  Link, Paperclip, Key, CalendarDays, MessageSquare, Eye, EyeOff
+  Link, Paperclip, Key, CalendarDays, MessageSquare, Eye, EyeOff,
+  Upload, Download, Image as ImageIcon, FileSpreadsheet, File as FileGeneric
 } from "lucide-react";
 
 const availableServices = [
@@ -93,6 +95,9 @@ export default function ClientDetailPage() {
   const [dnaNewCred, setDnaNewCred] = useState({ label: "", value: "" });
   const [dnaNewDate, setDnaNewDate] = useState({ label: "", date: "" });
   const [dnaShowPasswords, setDnaShowPasswords] = useState<Record<number, boolean>>({});
+  const [dnaUploading, setDnaUploading] = useState(false);
+  const [dnaDragOver, setDnaDragOver] = useState(false);
+  const dnaFileInputRef = useRef<HTMLInputElement>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [showEditValueModal, setShowEditValueModal] = useState(false);
@@ -134,6 +139,76 @@ export default function ClientDetailPage() {
     .filter(g => !manualTeam.some(a => a.memberId === g.id))
     .map(g => ({ memberId: g.id, memberName: g.name, role: "Gerente Operacional", designation: "titular" as const }));
   const assignedTeam = [...autoGerenteAssignments, ...manualTeam];
+
+  const handleDnaFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !client) return;
+    const allowedExt = /\.(jpg|jpeg|png|gif|webp|bmp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|odt|ods|odp|rtf)$/i;
+    const maxBytes = 25 * 1024 * 1024; // 25 MB
+
+    setDnaUploading(true);
+    try {
+      const currentDna = getClientDna(client.id);
+      const newFiles: ClientDnaFile[] = [];
+
+      for (const file of Array.from(files)) {
+        if (!allowedExt.test(file.name)) {
+          toast.error(`Tipo de arquivo não permitido: ${file.name}`);
+          continue;
+        }
+        if (file.size > maxBytes) {
+          toast.error(`Arquivo muito grande (máx 25MB): ${file.name}`);
+          continue;
+        }
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${client.id}/${Date.now()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from("client-dna-files").upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+        if (upErr) {
+          toast.error(`Erro ao enviar ${file.name}: ${upErr.message}`);
+          continue;
+        }
+        const { data: urlData } = supabase.storage.from("client-dna-files").getPublicUrl(path);
+        newFiles.push({
+          name: file.name,
+          url: urlData.publicUrl,
+          path,
+          type: file.type || "application/octet-stream",
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: currentUser?.name,
+        });
+      }
+
+      if (newFiles.length > 0) {
+        updateClientDna(client.id, { files: [...(currentDna.files || []), ...newFiles] });
+        toast.success(`${newFiles.length} arquivo(s) enviado(s)!`);
+      }
+    } catch (e: any) {
+      toast.error("Erro no upload: " + (e?.message || "desconhecido"));
+    } finally {
+      setDnaUploading(false);
+      if (dnaFileInputRef.current) dnaFileInputRef.current.value = "";
+    }
+  };
+
+  const handleDnaFileDelete = async (file: ClientDnaFile) => {
+    if (!client) return;
+    if (!window.confirm(`Excluir o arquivo "${file.name}"?`)) return;
+    try {
+      if (file.path) {
+        const { error } = await supabase.storage.from("client-dna-files").remove([file.path]);
+        if (error) console.error("Storage remove error:", error);
+      }
+      const currentDna = getClientDna(client.id);
+      updateClientDna(client.id, { files: (currentDna.files || []).filter(f => f.path !== file.path) });
+      toast.success("Arquivo excluído");
+    } catch (e: any) {
+      toast.error("Erro ao excluir: " + (e?.message || "desconhecido"));
+    }
+  };
 
   const handleRequestQuote = () => {
     if (!newService || !newRequestedBy) { toast.error("Preencha o serviço e quem solicitou"); return; }
@@ -619,6 +694,89 @@ export default function ClientDetailPage() {
                 <input type="date" value={dnaNewDate.date} onChange={(e) => setDnaNewDate(f => ({ ...f, date: e.target.value }))} className="flex-1 px-2 py-1.5 rounded-md border bg-background text-xs text-foreground" />
                 <button onClick={() => { if (dnaNewDate.label && dnaNewDate.date) { updateClientDna(client.id, { importantDates: [...dna.importantDates, { ...dnaNewDate }] }); setDnaNewDate({ label: "", date: "" }); } }} disabled={!dnaNewDate.label || !dnaNewDate.date} className="px-2 py-1.5 rounded-md bg-success text-success-foreground text-xs font-medium hover:bg-success/90 disabled:opacity-50 transition-colors"><Plus className="w-3.5 h-3.5" /></button>
               </div>
+            </div>
+
+            {/* Arquivos */}
+            <div
+              className={`rounded-lg border bg-card p-5 space-y-4 transition-colors ${dnaDragOver ? "border-primary bg-primary/5" : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setDnaDragOver(true); }}
+              onDragLeave={() => setDnaDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDnaDragOver(false); handleDnaFileUpload(e.dataTransfer.files); }}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-info" /> Arquivos
+                </h3>
+                <span className="text-[10px] text-muted-foreground">{(dna.files || []).length} arquivo(s)</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Imagens, PDFs, documentos (Word/Excel). Máx 25MB por arquivo.</p>
+
+              <input
+                ref={dnaFileInputRef}
+                type="file"
+                multiple
+                accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.odt,.ods,.odp,.rtf,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                onChange={(e) => handleDnaFileUpload(e.target.files)}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() => dnaFileInputRef.current?.click()}
+                disabled={dnaUploading}
+                className="w-full flex flex-col items-center justify-center gap-2 px-3 py-6 rounded-lg border-2 border-dashed border-info/30 bg-info/5 hover:bg-info/10 hover:border-info/50 transition-colors disabled:opacity-50"
+              >
+                <Upload className={`w-5 h-5 text-info ${dnaUploading ? "animate-pulse" : ""}`} />
+                <span className="text-xs text-foreground font-medium">
+                  {dnaUploading ? "Enviando..." : "Clique ou arraste arquivos aqui"}
+                </span>
+                <span className="text-[10px] text-muted-foreground">Imagem, PDF, DOC, XLS, PPT, TXT</span>
+              </button>
+
+              {(dna.files || []).length > 0 && (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {(dna.files || []).map((file, i) => {
+                    const isImage = file.type.startsWith("image/");
+                    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+                    const isSheet = /sheet|excel|csv/i.test(file.type) || /\.(xls|xlsx|csv|ods)$/i.test(file.name);
+                    const Icon = isImage ? ImageIcon : isPdf ? FileText : isSheet ? FileSpreadsheet : FileGeneric;
+                    const sizeKb = file.size / 1024;
+                    const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb.toFixed(0)} KB`;
+                    return (
+                      <div key={`${file.path}-${i}`} className="flex items-center gap-2 group">
+                        <div className="flex-1 flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-info/5 border border-info/20 min-w-0">
+                          <Icon className="w-4 h-4 text-info flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {sizeStr}
+                              {file.uploadedBy ? ` · ${file.uploadedBy}` : ""}
+                              {file.uploadedAt ? ` · ${new Date(file.uploadedAt).toLocaleDateString("pt-BR")}` : ""}
+                            </p>
+                          </div>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={file.name}
+                            className="flex-shrink-0 p-1 rounded hover:bg-info/10 text-info"
+                            title="Baixar / abrir"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                        <button
+                          onClick={() => handleDnaFileDelete(file)}
+                          className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 rounded p-1 transition-all"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Observações por Área */}

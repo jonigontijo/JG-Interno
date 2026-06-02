@@ -67,12 +67,22 @@ export interface OnboardingData {
 export interface ClientDnaLink { label: string; url: string; }
 export interface ClientDnaCredential { label: string; value: string; }
 export interface ClientDnaDate { label: string; date: string; }
+export interface ClientDnaFile {
+  name: string;
+  url: string;
+  path: string;
+  type: string;
+  size: number;
+  uploadedAt: string;
+  uploadedBy?: string;
+}
 export interface ClientDna {
   clientId: string;
   links: ClientDnaLink[];
   notes: Record<string, string>;
   credentials: ClientDnaCredential[];
   importantDates: ClientDnaDate[];
+  files: ClientDnaFile[];
 }
 
 export interface ClientPipelineState {

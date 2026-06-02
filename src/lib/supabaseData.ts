@@ -358,6 +358,7 @@ export async function loadAllData() {
       notes: row.notes || {},
       credentials: row.credentials || [],
       importantDates: row.important_dates || [],
+      files: row.files || [],
     })),
     _dbConnected: true,
   };

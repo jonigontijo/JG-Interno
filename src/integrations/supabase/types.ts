@@ -178,6 +178,7 @@ export type Database = {
         Row: {
           client_id: string
           credentials: Json | null
+          files: Json | null
           important_dates: Json | null
           links: Json | null
           notes: Json | null
@@ -185,6 +186,7 @@ export type Database = {
         Insert: {
           client_id: string
           credentials?: Json | null
+          files?: Json | null
           important_dates?: Json | null
           links?: Json | null
           notes?: Json | null
@@ -192,6 +194,7 @@ export type Database = {
         Update: {
           client_id?: string
           credentials?: Json | null
+          files?: Json | null
           important_dates?: Json | null
           links?: Json | null
           notes?: Json | null
