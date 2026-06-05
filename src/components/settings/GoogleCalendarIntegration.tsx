@@ -63,7 +63,9 @@ export default function GoogleCalendarIntegration({ adminOnly = false }: GoogleC
   const handleConnect = async () => {
     setBusy("connect");
     try {
-      const { data, error } = await supabase.functions.invoke("google-oauth-start");
+      const { data, error } = await supabase.functions.invoke("google-oauth-start", {
+        body: { origin: window.location.origin },
+      });
       if (error) throw error;
       const url = (data as { url?: string }).url;
       if (!url) throw new Error("URL de autorização não recebida");

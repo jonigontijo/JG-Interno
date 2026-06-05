@@ -40,7 +40,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const state = crypto.randomUUID();
+    const body = await req.json().catch(() => ({}));
+    const origin = (body && typeof body.origin === "string" && body.origin.startsWith("http")) ? body.origin : "";
+    // Embeda o origin do frontend no state para que o callback saiba para onde redirecionar.
+    const statePayload = JSON.stringify({ n: crypto.randomUUID(), o: origin });
+    const state = btoa(statePayload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,

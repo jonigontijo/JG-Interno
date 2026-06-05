@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Conexão Google</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0A0A0A; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .box { max-width: 480px; text-align: center; padding: 32px; border: 1px solid #1F1F1F; border-radius: 12px; background: #0F0F0F; }
+    h1 { margin: 0 0 8px; font-size: 18px; }
+    h1.ok { color: #FBBF24; }
+    h1.err { color: #EF4444; }
+    p { margin: 8px 0; color: #aaa; font-size: 13px; }
+    .hint { font-size: 11px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1 id="title" class="ok">Conta Google conectada</h1>
+    <p id="msg">Processando...</p>
+    <p class="hint">Esta janela fechará sozinha em instantes.</p>
+  </div>
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var ok = params.get("ok") === "1";
+        var email = params.get("email") || "";
+        var reason = params.get("reason") || "";
+        var titleEl = document.getElementById("title");
+        var msgEl = document.getElementById("msg");
+        if (ok) {
+          titleEl.textContent = "Conta Google conectada";
+          titleEl.className = "ok";
+          msgEl.textContent = email
+            ? "Conta " + email + " conectada com sucesso. Sincronização ativa."
+            : "Conta conectada com sucesso.";
+        } else {
+          titleEl.textContent = "Falha ao conectar";
+          titleEl.className = "err";
+          msgEl.textContent = reason || "Não foi possível concluir o OAuth do Google.";
+        }
+        if (window.opener) {
+          try {
+            window.opener.postMessage({ type: "google-oauth-callback", ok: ok, email: email, reason: reason }, "*");
+          } catch (e) { /* ignore */ }
+        }
+        setTimeout(function () { try { window.close(); } catch (e) { /* ignore */ } }, 1200);
+      } catch (e) {
+        document.getElementById("msg").textContent = "Erro inesperado: " + (e && e.message ? e.message : e);
+      }
+    })();
+  </script>
+</body>
+</html>
