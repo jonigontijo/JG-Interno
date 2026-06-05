@@ -63,6 +63,34 @@ function checkDingyAdmin(user: { isAdmin?: boolean; name?: string } | null): boo
   return (user.name || "").toLowerCase().includes("karen");
 }
 
+// Helpers de sync com Google Calendar (best-effort, nao bloqueia a UI em caso de falha).
+async function syncToGoogle(action: "upsert" | "delete", recordingId: string, googleEventId?: string | null) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+    await supabase.functions.invoke("google-calendar-push", {
+      body: { action, recording_id: recordingId, google_event_id: googleEventId || undefined },
+    });
+  } catch (e) {
+    console.warn("google-calendar-push falhou:", e);
+  }
+}
+
+async function syncFromGoogle(): Promise<{ upserts: number; deletes: number; total: number } | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("google-calendar-pull");
+    if (error) {
+      console.warn("google-calendar-pull error:", error);
+      return null;
+    }
+    return data as { upserts: number; deletes: number; total: number };
+  } catch (e) {
+    console.warn("google-calendar-pull falhou:", e);
+    return null;
+  }
+}
+
 // ============================================================================
 // Component principal: calendario de gravacoes para a aba Dingy
 // ============================================================================
@@ -112,6 +140,20 @@ export default function RecordingsCalendar() {
 
   useEffect(() => {
     fetchAll();
+  }, [fetchAll]);
+
+  // Ao montar / abrir a aba, dispara um pull incremental do Google (best-effort).
+  // Se houver mudancas, o realtime do Supabase ja propaga para a UI; mas garantimos
+  // um refetch logo apos para casos onde o realtime esteja atrasado.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const result = await syncFromGoogle();
+      if (!cancelled && result && (result.upserts > 0 || result.deletes > 0)) {
+        fetchAll();
+      }
+    })();
+    return () => { cancelled = true; };
   }, [fetchAll]);
 
   // Realtime: aplica INSERT/UPDATE/DELETE diretamente
@@ -497,6 +539,7 @@ function RecordingEditModal({
         return;
       }
       toast.success("Gravação atualizada");
+      syncToGoogle("upsert", (data as Recording).id);
       onSaved(data as Recording);
     } else {
       const { data, error } = await supabase
@@ -511,6 +554,7 @@ function RecordingEditModal({
         return;
       }
       toast.success("Gravação criada");
+      syncToGoogle("upsert", (data as Recording).id);
       onSaved(data as Recording);
     }
   };
@@ -693,11 +737,13 @@ function RecordingViewModal({
       return;
     }
     toast.success("Status atualizado");
+    syncToGoogle("upsert", recording.id);
     onChanged(data as Recording);
   };
 
   const remove = async () => {
     if (!confirm(`Excluir gravação "${recording.title}"?`)) return;
+    const googleEventId = (recording as Recording & { google_event_id?: string | null }).google_event_id || null;
     const { error } = await supabase.from("recordings").delete().eq("id", recording.id);
     if (error) {
       console.error("recording delete:", error);
@@ -705,6 +751,7 @@ function RecordingViewModal({
       return;
     }
     toast.success("Gravação excluída");
+    syncToGoogle("delete", recording.id, googleEventId);
     onDeleted();
   };
 

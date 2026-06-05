@@ -4,6 +4,7 @@ import Modal from "@/components/Modal";
 import { useAppStore, SettingItem } from "@/store/useAppStore";
 import { toast } from "sonner";
 import { Settings, Plus, Edit2, Trash2, Save, Building2, Clock, Megaphone, Target, Briefcase } from "lucide-react";
+import GoogleCalendarIntegration from "@/components/settings/GoogleCalendarIntegration";
 
 const categoryIcons: Record<string, React.ElementType> = {
   Empresa: Building2,
@@ -84,6 +85,8 @@ export default function SettingsPage() {
       </PageHeader>
 
       <div className="space-y-6">
+        <GoogleCalendarIntegration />
+
         {allCategories.map(cat => {
           const items = settings.filter(s => s.category === cat);
           if (items.length === 0) return null;
