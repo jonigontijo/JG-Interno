@@ -216,21 +216,24 @@ export default function LoginPage() {
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Sua função na empresa</label>
               <div className="flex flex-wrap gap-1.5 p-2.5 rounded-md border border-primary/10 bg-muted/20 max-h-28 overflow-y-auto">
-                {roleOptions.map(role => (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => toggleRegRole(role)}
-                    className={`text-[10px] px-2 py-1 rounded-full border transition-all ${
-                      regForm.desiredRoles.includes(role)
-                        ? "bg-primary/15 text-primary border-primary/30 font-medium"
-                        : "bg-transparent text-muted-foreground border-border hover:border-primary/30"
-                    }`}
-                    disabled={regLoading}
-                  >
-                    {regForm.desiredRoles.includes(role) ? "✓ " : ""}{role}
-                  </button>
-                ))}
+                {roleOptions.map(role => {
+                  const selected = regForm.desiredRoles.includes(role);
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => toggleRegRole(role)}
+                      className={`text-[10px] px-2 py-1 rounded-full border transition-all ${
+                        selected
+                          ? "bg-primary/15 text-primary border-primary/30 font-medium"
+                          : "bg-transparent text-muted-foreground border-border hover:border-primary/30"
+                      }`}
+                      disabled={regLoading}
+                    >
+                      {selected ? `✓ ${role}` : role}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div>
