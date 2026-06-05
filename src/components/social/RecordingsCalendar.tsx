@@ -3,6 +3,8 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import listPlugin from "@fullcalendar/list";
+import multiMonthPlugin from "@fullcalendar/multimonth";
 import { Loader2, MapPin, Plus, X, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -194,15 +196,28 @@ export default function RecordingsCalendar() {
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: "#0A0A0A", color: "#FFFFFF" }}>
       <style>{`
-        .dingy-calendar .fc { --fc-border-color: #1A1A1A; --fc-today-bg-color: #111111; --fc-page-bg-color: #0A0A0A; --fc-event-border-color: transparent; color: #FFFFFF; }
+        .dingy-calendar .fc { --fc-border-color: #1A1A1A; --fc-today-bg-color: #15140A; --fc-page-bg-color: #0A0A0A; --fc-event-border-color: transparent; --fc-now-indicator-color: #FBBF24; color: #FFFFFF; }
         .dingy-calendar .fc .fc-toolbar-title { color: #FFFFFF; font-size: 1.25rem; font-weight: 600; text-transform: capitalize; }
         .dingy-calendar .fc .fc-col-header-cell-cushion { color: #888888; text-transform: uppercase; font-size: 11px; font-weight: 600; padding: 8px; }
         .dingy-calendar .fc .fc-daygrid-day-number, .dingy-calendar .fc .fc-timegrid-slot-label-cushion { color: #888888; font-size: 12px; }
-        .dingy-calendar .fc .fc-day-today { border-top: 2px solid #FBBF24 !important; }
-        .dingy-calendar .fc .fc-event { border-radius: 8px !important; padding: 2px 6px; font-size: 12px; cursor: pointer; }
-        .dingy-calendar .fc .fc-button { background: #1A1A1A !important; border: 1px solid #2A2A2A !important; color: #FFFFFF !important; text-transform: capitalize; font-size: 12px; padding: 6px 12px; box-shadow: none !important; }
+        .dingy-calendar .fc .fc-day-today .fc-daygrid-day-number { background: #FBBF24; color: #000 !important; border-radius: 999px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+        .dingy-calendar .fc .fc-day-today { background: var(--fc-today-bg-color) !important; }
+        .dingy-calendar .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion { color: #FBBF24; }
+        .dingy-calendar .fc .fc-event { border-radius: 6px !important; padding: 2px 6px; font-size: 12px; cursor: pointer; border-left: 3px solid rgba(0,0,0,0.25) !important; }
+        .dingy-calendar .fc .fc-event:hover { filter: brightness(1.1); }
+        .dingy-calendar .fc .fc-daygrid-event { padding: 1px 5px; }
+        .dingy-calendar .fc .fc-list-event:hover td { background: #111 !important; }
+        .dingy-calendar .fc .fc-list-day-cushion { background: #111 !important; color: #FFF; }
+        .dingy-calendar .fc .fc-list-empty { background: #0A0A0A; color: #888; }
+        .dingy-calendar .fc .fc-button { background: #1A1A1A !important; border: 1px solid #2A2A2A !important; color: #FFFFFF !important; text-transform: capitalize; font-size: 12px; padding: 6px 12px; box-shadow: none !important; border-radius: 8px !important; }
         .dingy-calendar .fc .fc-button:hover { background: #222222 !important; }
         .dingy-calendar .fc .fc-button-primary:not(:disabled).fc-button-active { background: #FBBF24 !important; color: #000 !important; border-color: #FBBF24 !important; }
+        .dingy-calendar .fc .fc-toolbar.fc-header-toolbar { margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+        .dingy-calendar .fc .fc-button-group > .fc-button { border-radius: 0 !important; }
+        .dingy-calendar .fc .fc-button-group > .fc-button:first-child { border-top-left-radius: 8px !important; border-bottom-left-radius: 8px !important; }
+        .dingy-calendar .fc .fc-button-group > .fc-button:last-child { border-top-right-radius: 8px !important; border-bottom-right-radius: 8px !important; }
+        .dingy-calendar .fc .fc-multimonth-title { color: #FBBF24; font-weight: 600; }
+        .dingy-calendar .fc .fc-multimonth-daygrid { background: #0A0A0A; }
         .fc-recording-pulse { animation: fc-pulse 1.8s ease-in-out infinite; }
         .fc-recording-cancelled { text-decoration: line-through; opacity: 0.7; }
         @keyframes fc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -245,13 +260,37 @@ export default function RecordingsCalendar() {
           ) : (
             <FullCalendar
               ref={calRef as never}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, multiMonthPlugin]}
               initialView="dayGridMonth"
+              initialDate={new Date()}
+              now={new Date()}
+              nowIndicator
               locale="pt-br"
-              buttonText={{ today: "Hoje", month: "Mês", week: "Semana", day: "Dia" }}
-              headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
+              firstDay={0}
+              buttonText={{
+                today: "Hoje",
+                month: "Mês",
+                week: "Semana",
+                day: "Dia",
+                year: "Ano",
+                list: "Programação",
+              }}
+              views={{
+                timeGridFourDay: { type: "timeGrid", duration: { days: 4 }, buttonText: "4 dias" },
+                multiMonthYear: { type: "multiMonth", duration: { months: 12 }, buttonText: "Ano" },
+                listMonth: { buttonText: "Programação" },
+              }}
+              headerToolbar={{
+                left: "prev,next today",
+                center: "title",
+                right: "timeGridDay,timeGridFourDay,timeGridWeek,dayGridMonth,multiMonthYear,listMonth",
+              }}
               events={events}
               height="auto"
+              slotMinTime="06:00:00"
+              slotMaxTime="22:00:00"
+              dayMaxEventRows={3}
+              eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
               dateClick={(info) =>
                 setEditing({
                   date: info.dateStr,

@@ -438,9 +438,11 @@ export default function SocialMediaPage() {
     <div>
       <PageHeader title="Social Media" description="Planejamento, produção e publicações">
         <div className="flex gap-2">
-          <button onClick={() => setShowRecordingModal(true)} className="flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground">
-            <Film className="w-4 h-4" /> Agendar Gravação
-          </button>
+          {activeTab !== "calendar" && (
+            <button onClick={() => setShowRecordingModal(true)} className="flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-muted-foreground hover:text-foreground">
+              <Film className="w-4 h-4" /> Agendar Gravação
+            </button>
+          )}
           <button onClick={() => setShowTaskModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
             <Plus className="w-4 h-4" /> Nova Tarefa
           </button>
@@ -461,146 +463,9 @@ export default function SocialMediaPage() {
         <OperationTaskList moduleName="Social Media" tasks={socialTasks} />
       )}
 
-      {/* Calendar Tab - Google Agenda Style */}
+      {/* Calendar Tab - usa o RecordingsCalendar (FullCalendar estilo Google Agenda) */}
       {activeTab === "calendar" && (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          {/* Calendar header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-            <button onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))} className="p-1.5 rounded-md hover:bg-muted transition-colors">
-              <ChevronLeft className="w-4 h-4 text-foreground" />
-            </button>
-            <h2 className="text-sm font-semibold text-foreground capitalize">
-              {format(calendarMonth, "MMMM yyyy", { locale: ptBR })}
-            </h2>
-            <button onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))} className="p-1.5 rounded-md hover:bg-muted transition-colors">
-              <ChevronRight className="w-4 h-4 text-foreground" />
-            </button>
-          </div>
-
-          {/* Day headers */}
-          <div className="grid grid-cols-7 border-b">
-            {dayNames.map(d => (
-              <div key={d} className="text-center py-2 text-xs font-medium text-muted-foreground border-r last:border-r-0">
-                {d}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7">
-            {calendarDays.map((day, i) => {
-              const dayRecordings = getRecordingsForDay(day);
-              const isCurrentMonth = isSameMonth(day, calendarMonth);
-              const isToday = isSameDay(day, new Date());
-              const isSelected = selectedDay && isSameDay(day, selectedDay);
-
-              return (
-                <div
-                  key={i}
-                  onClick={() => setSelectedDay(day)}
-                  className={cn(
-                    "min-h-[100px] border-r border-b last:border-r-0 p-1.5 cursor-pointer transition-colors",
-                    !isCurrentMonth && "bg-muted/20",
-                    isSelected && "bg-primary/5",
-                    "hover:bg-muted/30"
-                  )}
-                >
-                  <div className={cn(
-                    "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
-                    isToday && "bg-primary text-primary-foreground",
-                    !isCurrentMonth && "text-muted-foreground/50",
-                    isCurrentMonth && !isToday && "text-foreground"
-                  )}>
-                    {format(day, "d")}
-                  </div>
-                  <div className="space-y-0.5">
-                    {dayRecordings.map(rec => (
-                      <div
-                        key={rec.id}
-                        className={cn(
-                          "text-[10px] px-1.5 py-0.5 rounded truncate",
-                          rec.roteiroSent
-                            ? "bg-primary/15 text-primary border-l-2 border-primary"
-                            : "bg-warning/15 text-warning border-l-2 border-warning"
-                        )}
-                        title={`${rec.clientName} - ${rec.time || "Horário TBD"} - ${rec.videomaker || "Sem videomaker"}`}
-                      >
-                        {rec.time && <span className="font-mono">{rec.time}</span>} {rec.clientName}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Selected day detail */}
-          {selectedDay && (
-            <div className="border-t p-4 bg-muted/10">
-              <h3 className="text-sm font-semibold text-foreground mb-3">
-                {format(selectedDay, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-              </h3>
-              {getRecordingsForDay(selectedDay).length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhuma gravação agendada</p>
-              ) : (
-                <div className="space-y-2">
-                  {getRecordingsForDay(selectedDay).map(rec => (
-                    <div key={rec.id} className="flex items-center justify-between p-3 rounded-md bg-card border">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{rec.clientName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          🕐 {rec.time || "A definir"} · 🎬 {rec.videomaker || "Sem videomaker"}
-                        </p>
-                        {rec.notes && <p className="text-xs text-muted-foreground italic mt-0.5">"{rec.notes}"</p>}
-                        {rec.roteiro && (
-                          <details className="mt-1">
-                            <summary className="text-[10px] text-primary cursor-pointer hover:underline">📝 Ver roteiro</summary>
-                            <pre className="text-[10px] text-muted-foreground mt-1 whitespace-pre-wrap bg-muted/30 p-2 rounded">{rec.roteiro}</pre>
-                          </details>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {rec.roteiroSent ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" /> Roteiro OK
-                          </span>
-                        ) : (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/15 text-warning flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Roteiro pendente
-                          </span>
-                        )}
-                        {!rec.videomaker && (
-                          <select
-                            onChange={(e) => {
-                              setRecordings(prev => prev.map(r => r.id === rec.id ? { ...r, videomaker: e.target.value } : r));
-                              toast.success("Videomaker designado!");
-                            }}
-                            className="text-xs px-2 py-1 rounded border bg-background text-foreground"
-                            defaultValue=""
-                          >
-                            <option value="" disabled>Designar</option>
-                            {team.filter(m => m.roles.includes("Social Media - Videomaker")).map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                          </select>
-                        )}
-                        {!rec.roteiroSent && (
-                          <button
-                            onClick={() => {
-                              setRecordings(prev => prev.map(r => r.id === rec.id ? { ...r, roteiroSent: true } : r));
-                              toast.success("Roteiro marcado como enviado!");
-                            }}
-                            className="text-[10px] px-2 py-1 rounded bg-primary/20 text-primary hover:bg-primary/30"
-                          >
-                            ✓ Marcar roteiro
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <RecordingsCalendar />
       )}
 
       {/* Dingy Tab - mini-app integrado com sub-abas (Board, Calendário, Projetos, Equipe, Relatórios, Notificações, Configurações) */}
