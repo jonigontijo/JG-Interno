@@ -36,6 +36,8 @@ export interface Recording {
   created_by: string;
   created_at: string;
   updated_at: string;
+  google_event_id?: string | null;
+  google_synced_at?: string | null;
 }
 
 const STATUS_COLORS: Record<Recording["status"], string> = {
@@ -184,17 +186,34 @@ export default function RecordingsCalendar() {
   // Filtro de visibilidade: admin (incluindo Karen) ve tudo; outros so veem as proprias
   const visibleRecordings = useMemo(() => {
     const myName = currentUser?.name || "";
-    return recordings.filter((r) => {
+    const filtered = recordings.filter((r) => {
       if (!isAdmin) {
         const isParticipant = (r.participants || []).includes(myName);
         const isResponsible = r.responsible_name === myName;
         const isCreator = r.created_by === myName;
-        if (!isParticipant && !isResponsible && !isCreator) return false;
+        const isFromGoogleAgenda = !!r.google_event_id;
+        const isLegacyMock = r.created_by === "Sistema";
+        if (!isParticipant && !isResponsible && !isCreator && !isFromGoogleAgenda && !isLegacyMock) return false;
       }
       if (filterResponsible !== "all" && r.responsible_name !== filterResponsible) return false;
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       return true;
     });
+    // #region agent log
+    try {
+      const sample = recordings.slice(0, 5).map((r) => ({
+        id: r.id?.slice(0, 8),
+        title: r.title,
+        date: r.date,
+        created_by: r.created_by,
+        has_google: !!r.google_event_id,
+      }));
+      // eslint-disable-next-line no-console
+      console.log("[debug500743] visibleRecordings", { total: recordings.length, visible: filtered.length, isAdmin, myName, sample });
+      fetch('http://127.0.0.1:7766/ingest/0c49ec12-84fe-49c1-b002-28f07f1904a9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'500743'},body:JSON.stringify({sessionId:'500743',hypothesisId:'D',location:'RecordingsCalendar.tsx:visibleRecordings',message:'filter result',data:{total:recordings.length,visible:filtered.length,isAdmin,myName,sample},timestamp:Date.now()})}).catch(()=>{});
+    } catch {}
+    // #endregion
+    return filtered;
   }, [recordings, currentUser, isAdmin, filterResponsible, filterStatus]);
 
   const events = useMemo(
