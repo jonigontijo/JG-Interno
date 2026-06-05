@@ -322,7 +322,7 @@ export default function RecordingsCalendar() {
             <FullCalendar
               ref={calRef as never}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, multiMonthPlugin]}
-              initialView="dayGridMonth"
+              initialView="timeGridWeek"
               initialDate={new Date()}
               now={new Date()}
               nowIndicator
@@ -734,7 +734,8 @@ function RecordingViewModal({
   const participantMembers = (recording.participants || [])
     .map((name) => members.find((m) => m.name === name))
     .filter(Boolean) as MemberLite[];
-  const canEdit = isAdmin || recording.created_by === currentUserName;
+  const isFromGoogleAgenda = !!recording.google_event_id;
+  const canEdit = isAdmin || recording.created_by === currentUserName || isFromGoogleAgenda;
   const dateStr = new Date(recording.date + "T00:00:00").toLocaleDateString("pt-BR", {
     weekday: "short",
     day: "2-digit",

@@ -99,11 +99,18 @@ Deno.serve(async (req) => {
       if (j.nextSyncToken) nextSyncToken = j.nextSyncToken;
     } while (pageToken);
 
+    // #region agent log
+    console.log("[debug500743] pull events", { total: events.length, hadSyncToken: !!conn.sync_token, statusBreakdown: events.reduce((acc: any, e: any) => { acc[e.status || "unknown"] = (acc[e.status || "unknown"] || 0) + 1; return acc; }, {}) });
+    // #endregion
+
     let upserts = 0, deletes = 0, skipped = 0;
     for (const ev of events) {
       const jgIdHint: string | undefined = ev.extendedProperties?.private?.jg_recording_id;
       const evId: string = ev.id;
       if (ev.status === "cancelled") {
+        // #region agent log
+        console.log("[debug500743] pull cancelled", { evId, summary: ev.summary, jgIdHint, updated: ev.updated, recurringEventId: ev.recurringEventId });
+        // #endregion
         const { data: matched } = await db.from("recordings")
           .select("id")
           .or(`google_event_id.eq.${evId}${jgIdHint ? `,id.eq.${jgIdHint}` : ""}`)

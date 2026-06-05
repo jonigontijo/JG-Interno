@@ -126,7 +126,7 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "dingy" | "briefings" | "integrations">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "dingy" | "briefings" | "integrations">("calendar");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -429,8 +429,8 @@ export default function SocialMediaPage() {
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   const tabs = [
-    { key: "tasks", label: "Tarefas", icon: FileText },
     { key: "calendar", label: "Calendário de Gravações", icon: CalendarIcon },
+    { key: "tasks", label: "Tarefas", icon: FileText },
     { key: "dingy", label: "Dingy", icon: Film },
     { key: "briefings", label: "Briefing Clientes", icon: ClipboardList },
     { key: "integrations", label: "Integrações", icon: Plug },
