@@ -13,7 +13,12 @@ interface GcalStatus {
   has_sync_token: boolean;
 }
 
-export default function GoogleCalendarIntegration() {
+interface GoogleCalendarIntegrationProps {
+  /** Quando true, oculta o card para usuarios sem permissao de admin. Default: false (qualquer um pode conectar). */
+  adminOnly?: boolean;
+}
+
+export default function GoogleCalendarIntegration({ adminOnly = false }: GoogleCalendarIntegrationProps = {}) {
   const currentUser = useAuthStore((s) => s.currentUser);
   const isAdmin = !!currentUser?.isAdmin;
   const [status, setStatus] = useState<GcalStatus | null>(null);
@@ -117,7 +122,7 @@ export default function GoogleCalendarIntegration() {
     }
   };
 
-  if (!isAdmin) return null;
+  if (adminOnly && !isAdmin) return null;
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">

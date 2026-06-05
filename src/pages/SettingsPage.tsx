@@ -85,7 +85,7 @@ export default function SettingsPage() {
       </PageHeader>
 
       <div className="space-y-6">
-        <GoogleCalendarIntegration />
+        <GoogleCalendarIntegration adminOnly />
 
         {allCategories.map(cat => {
           const items = settings.filter(s => s.category === cat);

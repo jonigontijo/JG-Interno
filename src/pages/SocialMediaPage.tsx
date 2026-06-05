@@ -9,11 +9,12 @@ import { toast } from "sonner";
 import {
   Plus, Calendar as CalendarIcon, Film, CheckCircle, AlertTriangle, FileText,
   ChevronLeft, ChevronRight, Bell, Users, BarChart3, HandHelping, Eye, Upload,
-  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw, Pencil, Save
+  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw, Pencil, Save, Plug
 } from "lucide-react";
 import OperationTaskList from "@/components/OperationTaskList";
 import RecordingsCalendar from "@/components/social/RecordingsCalendar";
 import DingyTabContainer from "@/components/social/DingyTabContainer";
+import GoogleCalendarIntegration from "@/components/settings/GoogleCalendarIntegration";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,7 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "dingy" | "briefings">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "dingy" | "briefings" | "integrations">("tasks");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -432,6 +433,7 @@ export default function SocialMediaPage() {
     { key: "calendar", label: "Calendário de Gravações", icon: CalendarIcon },
     { key: "dingy", label: "Dingy", icon: Film },
     { key: "briefings", label: "Briefing Clientes", icon: ClipboardList },
+    { key: "integrations", label: "Integrações", icon: Plug },
   ];
 
   return (
@@ -466,6 +468,13 @@ export default function SocialMediaPage() {
       {/* Calendar Tab - usa o RecordingsCalendar (FullCalendar estilo Google Agenda) */}
       {activeTab === "calendar" && (
         <RecordingsCalendar />
+      )}
+
+      {/* Integracoes Tab - conexao bidirecional com a Google Agenda */}
+      {activeTab === "integrations" && (
+        <div className="space-y-4">
+          <GoogleCalendarIntegration />
+        </div>
       )}
 
       {/* Dingy Tab - mini-app integrado com sub-abas (Board, Calendário, Projetos, Equipe, Relatórios, Notificações, Configurações) */}
