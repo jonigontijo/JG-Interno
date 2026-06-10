@@ -1,1 +1,30 @@
 project_id = "igmwcdeuqoudrwsmwgpl"
+
+# Callback externo (n8n / app do cliente) — sem JWT do Supabase,
+# protegido pelo header x-jg-secret (sm_integration_settings.callback_secret).
+[functions.sm-callback]
+verify_jwt = false
+
+# Dispara eventos para os webhooks inscritos — protegido pelo x-jg-secret.
+[functions.sm-fire-event]
+verify_jwt = false
+
+# Callback OAuth do Google Sheets — chamado pelo Google sem JWT.
+[functions.google-sheets-oauth-callback]
+verify_jwt = false
+
+# Pull da planilha — chamado pelo cron (pg_cron) sem JWT.
+[functions.google-sheets-pull]
+verify_jwt = false
+
+# Espelho multi-aba — chamado pelo cron sem JWT.
+[functions.google-sheets-mirror]
+verify_jwt = false
+
+# Autosync inteligente (checa modifiedTime) — chamado pelo cron sem JWT.
+[functions.google-sheets-autosync]
+verify_jwt = false
+
+# Edição em tempo real vinda do Google Apps Script (onEdit) — protegido pelo secret.
+[functions.google-sheets-edit-hook]
+verify_jwt = false

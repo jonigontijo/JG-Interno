@@ -9,12 +9,16 @@ import { toast } from "sonner";
 import {
   Plus, Calendar as CalendarIcon, Film, CheckCircle, AlertTriangle, FileText,
   ChevronLeft, ChevronRight, Bell, Users, BarChart3, HandHelping, Eye, Upload,
-  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw, Pencil, Save, Plug
+  MessageCircle, ExternalLink, X, ClipboardList, Trash2, Search, RefreshCw, Pencil, Save, Plug,
+  FileSpreadsheet, HardDrive, Link2
 } from "lucide-react";
 import OperationTaskList from "@/components/OperationTaskList";
 import RecordingsCalendar from "@/components/social/RecordingsCalendar";
 import DingyTabContainer from "@/components/social/DingyTabContainer";
 import GoogleCalendarIntegration from "@/components/settings/GoogleCalendarIntegration";
+import GoogleSheetsIntegration from "@/components/settings/GoogleSheetsIntegration";
+import PostagensPlanilha from "@/components/social/PostagensPlanilha";
+import GoogleIntegrationSetupModal, { type IntegrationFormData } from "@/components/settings/GoogleIntegrationSetupModal";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -126,12 +130,14 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"tasks" | "calendar" | "dingy" | "briefings" | "integrations">("calendar");
+  const [activeTab, setActiveTab] = useState<"calendar" | "planilha" | "dingy" | "briefings" | "integrations">("calendar");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadClientId, setUploadClientId] = useState<string | null>(null);
+  const [showAddIntegrationModal, setShowAddIntegrationModal] = useState(false);
+  const [savedIntegrations, setSavedIntegrations] = useState<(IntegrationFormData & { id: string; savedAt: string })[]>([]);
 
   const [briefings, setBriefings] = useState<ClientBriefing[]>([]);
   const [briefingsLoading, setBriefingsLoading] = useState(false);
@@ -429,8 +435,8 @@ export default function SocialMediaPage() {
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   const tabs = [
-    { key: "calendar", label: "Calendário de Gravações", icon: CalendarIcon },
-    { key: "tasks", label: "Tarefas", icon: FileText },
+    { key: "calendar", label: "Agenda", icon: CalendarIcon },
+    { key: "planilha", label: "Planilha", icon: FileSpreadsheet },
     { key: "dingy", label: "Dingy", icon: Film },
     { key: "briefings", label: "Briefing Clientes", icon: ClipboardList },
     { key: "integrations", label: "Integrações", icon: Plug },
@@ -461,8 +467,9 @@ export default function SocialMediaPage() {
         ))}
       </div>
 
-      {activeTab === "tasks" && (
-        <OperationTaskList moduleName="Social Media" tasks={socialTasks} />
+      {/* Planilha Tab - espelho editável multi-aba da planilha de postagens (Google Sheets) */}
+      {activeTab === "planilha" && (
+        <PostagensPlanilha />
       )}
 
       {/* Calendar Tab - usa o RecordingsCalendar (FullCalendar estilo Google Agenda) */}
@@ -470,10 +477,89 @@ export default function SocialMediaPage() {
         <RecordingsCalendar />
       )}
 
-      {/* Integracoes Tab - conexao bidirecional com a Google Agenda */}
+      {/* Integracoes Tab */}
       {activeTab === "integrations" && (
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Integrações Google</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Conecte planilhas, agendas, drives e documentos Google</p>
+            </div>
+            <button
+              onClick={() => setShowAddIntegrationModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Adicionar Integração
+            </button>
+          </div>
+
           <GoogleCalendarIntegration />
+
+          <GoogleSheetsIntegration />
+
+          {savedIntegrations.length > 0 && (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b bg-muted/30">
+                <h4 className="text-xs font-semibold text-foreground">Integrações Configuradas</h4>
+              </div>
+              <div className="divide-y">
+                {savedIntegrations.map((integration) => {
+                  const typeIcons: Record<string, React.ElementType> = {
+                    sheets: FileSpreadsheet,
+                    drive: HardDrive,
+                    docs: FileText,
+                    calendar: CalendarIcon,
+                    other: Link2,
+                  };
+                  const TypeIcon = typeIcons[integration.resourceType] || Link2;
+                  const typeLabels: Record<string, string> = {
+                    sheets: "Google Sheets",
+                    drive: "Google Drive",
+                    docs: "Google Docs",
+                    calendar: "Google Calendar",
+                    other: "Outro",
+                  };
+                  return (
+                    <div key={integration.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-8 h-8 rounded-md border bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <TypeIcon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {integration.label || typeLabels[integration.resourceType]}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">{typeLabels[integration.resourceType]}</p>
+                      </div>
+                      <a
+                        href={integration.resourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        title="Abrir documento"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                      <button
+                        onClick={() => setSavedIntegrations(prev => prev.filter(i => i.id !== integration.id))}
+                        className="shrink-0 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Remover integração"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {savedIntegrations.length === 0 && (
+            <div className="rounded-lg border border-dashed bg-muted/10 py-10 flex flex-col items-center gap-2 text-center">
+              <Plug className="w-8 h-8 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground">Nenhuma integração configurada</p>
+              <p className="text-xs text-muted-foreground">Clique em "Adicionar Integração" para conectar uma planilha, agenda ou documento Google</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -982,6 +1068,19 @@ export default function SocialMediaPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Add Integration Modal */}
+      <GoogleIntegrationSetupModal
+        open={showAddIntegrationModal}
+        onClose={() => setShowAddIntegrationModal(false)}
+        onSave={(data) => {
+          setSavedIntegrations(prev => [
+            ...prev,
+            { ...data, id: `integration-${Date.now()}`, savedAt: new Date().toISOString() },
+          ]);
+          toast.success("Integração salva com sucesso!");
+        }}
+      />
 
       {/* Recording Modal */}
       <Modal open={showRecordingModal} onClose={() => setShowRecordingModal(false)} title="Agendar Gravação">

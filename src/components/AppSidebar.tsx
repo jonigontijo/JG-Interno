@@ -77,6 +77,7 @@ const navSections: NavSection[] = [
     items: [
       { label: "Usuários", icon: Shield, path: "/admin", moduleKey: "admin" },
       { label: "Auditoria", icon: ClipboardList, path: "/audit", moduleKey: "audit" },
+      { label: "Integração IA & Webhooks", icon: Bot, path: "/ai-integration", moduleKey: "dashboard" },
       { label: "Configurações", icon: Settings, path: "/settings", moduleKey: "settings" },
       { label: "Central de Ajuda", icon: HelpCircle, path: "/help", moduleKey: "dashboard" },
     ],

@@ -1,5 +1,4 @@
-// Gera a URL de autorizacao do Google OAuth para conectar a conta agendajoaojg@gmail.com.
-// Retorna { url } para o frontend redirecionar o usuario.
+// Gera a URL de autorização OAuth para conectar a conta Google com acesso a Sheets + Drive.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -10,10 +9,8 @@ const corsHeaders = {
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const SCOPES = [
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://www.googleapis.com/auth/spreadsheets",            // ler + escrever planilhas (Sheets)
-  "https://www.googleapis.com/auth/drive.metadata.readonly", // listar/watch arquivos (Drive)
+  "https://www.googleapis.com/auth/spreadsheets",       // ler + escrever planilhas
+  "https://www.googleapis.com/auth/drive.metadata.readonly", // files.watch (realtime)
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ].join(" ");
@@ -26,27 +23,17 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("authorization") || "";
     const sb = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-    const redirectUri = Deno.env.get("GOOGLE_REDIRECT_URI");
-    if (!clientId || !redirectUri) {
-      return new Response(JSON.stringify({ error: "missing_google_env" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const clientId = Deno.env.get("GOOGLE_SHEETS_CLIENT_ID");
+    const redirectUri = Deno.env.get("GOOGLE_SHEETS_REDIRECT_URI");
+    if (!clientId || !redirectUri) return new Response(JSON.stringify({ error: "missing_google_sheets_env" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const body = await req.json().catch(() => ({}));
     const origin = (body && typeof body.origin === "string" && body.origin.startsWith("http")) ? body.origin : "";
-    // Embeda o origin do frontend no state para que o callback saiba para onde redirecionar.
     const statePayload = JSON.stringify({ n: crypto.randomUUID(), o: origin });
     const state = btoa(statePayload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -57,14 +44,8 @@ Deno.serve(async (req) => {
       prompt: "consent",
       state,
     });
-    const url = `${GOOGLE_AUTH_URL}?${params.toString()}`;
-    return new Response(JSON.stringify({ url, state }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ url: `${GOOGLE_AUTH_URL}?${params.toString()}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: String((e as Error)?.message || e) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

@@ -8,6 +8,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { supabase } from "@/integrations/supabase/client";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
+import FloatingAIChat from "@/components/FloatingAIChat";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ClientsPage from "./pages/ClientsPage";
@@ -34,6 +35,7 @@ import WorkloadPage from "./pages/WorkloadPage";
 import AdminPage from "./pages/AdminPage";
 import AuditPage from "./pages/AuditPage";
 import SettingsPage from "./pages/SettingsPage";
+import AIIntegrationPage from "./pages/AIIntegrationPage";
 import QuoteRequestsPage from "./pages/QuoteRequestsPage";
 import RequestsPage from "./pages/RequestsPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
@@ -192,9 +194,11 @@ function AuthenticatedApp() {
         <Route path="/admin" element={<ProtectedRoute moduleKey="admin"><AdminPage /></ProtectedRoute>} />
         <Route path="/audit" element={<ProtectedRoute moduleKey="audit"><AuditPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><SettingsPage /></ProtectedRoute>} />
+        <Route path="/ai-integration" element={<ProtectedRoute moduleKey="dashboard"><AIIntegrationPage /></ProtectedRoute>} />
         <Route path="/help" element={<HelpCenterPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <FloatingAIChat />
     </AppLayout>
   );
 }
