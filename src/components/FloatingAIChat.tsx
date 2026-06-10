@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAIContextStore } from "@/store/useAIContextStore";
 import { toast } from "sonner";
 import { Bot, X, Send, Loader2, Sparkles, Eye } from "lucide-react";
 
-interface AiKey { id: string; provider: string; label: string | null; model: string | null; }
+interface AiKey { id: string; provider: string; label: string | null; model: string | null; models: string[] | null; }
 interface ChatMsg { role: "user" | "assistant"; content: string; }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -35,15 +35,29 @@ export default function FloatingAIChat() {
   const dragRef = useRef<{ dragging: boolean; moved: boolean; offX: number; offY: number }>({ dragging: false, moved: false, offX: 0, offY: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // carrega os modelos com token ativo
+  // carrega os tokens ativos (com seus modelos)
   useEffect(() => {
-    supabase.from("sm_ai_api_keys").select("id, provider, label, model").eq("is_active", true).order("created_at")
-      .then(({ data }) => {
-        const k = (data as AiKey[]) || [];
-        setKeys(k);
-        setSelectedKey((cur) => cur && k.some(x => x.id === cur) ? cur : (k[0]?.id || ""));
-      });
+    supabase.from("sm_ai_api_keys").select("id, provider, label, model, models").eq("is_active", true).order("created_at")
+      .then(({ data }) => setKeys((data as AiKey[]) || []));
   }, [open]);
+
+  // opções achatadas: cada par (token × modelo) vira uma opção do seletor
+  const options = useMemo(() => {
+    const opts: { value: string; keyId: string; model: string; label: string }[] = [];
+    for (const k of keys) {
+      const prov = PROVIDER_LABEL[k.provider] || k.provider;
+      const ms = (k.models && k.models.length) ? k.models : (k.model ? [k.model] : [""]);
+      for (const m of ms) {
+        opts.push({ value: `${k.id}::${m}`, keyId: k.id, model: m, label: `${prov}${m ? ` · ${m}` : " · (padrão)"}${k.label ? ` (${k.label})` : ""}` });
+      }
+    }
+    return opts;
+  }, [keys]);
+
+  // garante que a seleção atual seja válida
+  useEffect(() => {
+    setSelectedKey((cur) => (cur && options.some((o) => o.value === cur)) ? cur : (options[0]?.value || ""));
+  }, [options]);
 
   useEffect(() => { if (selectedKey) localStorage.setItem(KEY_KEY, selectedKey); }, [selectedKey]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, sending]);
@@ -90,8 +104,11 @@ export default function FloatingAIChat() {
     setInput("");
     setSending(true);
     try {
+      const sep = selectedKey.indexOf("::");
+      const keyId = sep >= 0 ? selectedKey.slice(0, sep) : selectedKey;
+      const model = sep >= 0 ? selectedKey.slice(sep + 2) : "";
       const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: { key_id: selectedKey, messages: newMsgs, context: buildContext() },
+        body: { key_id: keyId, model: model || undefined, messages: newMsgs, context: buildContext() },
       });
       if (error) throw error;
       const r = data as { ok?: boolean; reply?: string; error?: string; detail?: string };
@@ -102,7 +119,6 @@ export default function FloatingAIChat() {
     } finally { setSending(false); }
   };
 
-  const selKey = keys.find(k => k.id === selectedKey);
 
   return (
     <>
@@ -141,15 +157,13 @@ export default function FloatingAIChat() {
 
           {/* seletor de modelo */}
           <div className="px-3 py-2 border-b">
-            {keys.length === 0 ? (
+            {options.length === 0 ? (
               <p className="text-[11px] text-muted-foreground">Nenhum token de IA cadastrado. Vá em <span className="font-medium">Integração IA &amp; Webhooks</span>.</p>
             ) : (
               <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}
                 className="w-full text-xs px-2 py-1.5 rounded-md border bg-background text-foreground">
-                {keys.map(k => (
-                  <option key={k.id} value={k.id}>
-                    {PROVIDER_LABEL[k.provider] || k.provider}{k.model ? ` · ${k.model}` : ""}{k.label ? ` (${k.label})` : ""}
-                  </option>
+                {options.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             )}

@@ -14,6 +14,7 @@ interface AiKey {
   label: string | null;
   api_key: string;
   model: string | null;
+  models: string[] | null;
   base_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -78,8 +79,9 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
   const [busy, setBusy] = useState(false);
 
   // form token IA
-  const [form, setForm] = useState({ provider: "openai", label: "", api_key: "", model: "", base_url: "" });
+  const [form, setForm] = useState({ id: "", provider: "openai", label: "", api_key: "", base_url: "", modelsText: "" });
   const [showForm, setShowForm] = useState(false);
+  const [fetchingModels, setFetchingModels] = useState(false);
 
   // form webhook
   const [whForm, setWhForm] = useState<typeof emptyWebhook>(emptyWebhook);
@@ -106,21 +108,59 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
   useEffect(() => { load(); }, [load]);
 
   // ── Tokens IA ──
-  const handleAddKey = async () => {
+  const parseModels = (text: string) => [...new Set(text.split(/[\n,]/).map((s) => s.trim()).filter(Boolean))];
+  const resetKeyForm = () => setForm({ id: "", provider: "openai", label: "", api_key: "", base_url: "", modelsText: "" });
+  const openNewKey = () => { resetKeyForm(); setShowForm(true); };
+  const openEditKey = (k: AiKey) => {
+    setForm({ id: k.id, provider: k.provider, label: k.label || "", api_key: k.api_key, base_url: k.base_url || "", modelsText: (k.models || []).join("\n") });
+    setShowForm(true);
+  };
+
+  const handleSaveKey = async () => {
     if (!form.api_key.trim()) { toast.error("Informe o token da API"); return; }
     setBusy(true);
     try {
-      const { error } = await supabase.from("sm_ai_api_keys").insert({
+      const models = parseModels(form.modelsText);
+      const payload = {
         provider: form.provider, label: form.label || null, api_key: form.api_key.trim(),
-        model: form.model || null, base_url: form.base_url || null, created_by: currentUser?.authId ?? null,
-      });
-      if (error) throw error;
-      toast.success("Token de IA salvo!");
-      setForm({ provider: "openai", label: "", api_key: "", model: "", base_url: "" });
-      setShowForm(false);
-      await load();
+        base_url: form.base_url || null, models, model: models[0] || null,
+      };
+      if (form.id) {
+        const { error } = await supabase.from("sm_ai_api_keys").update(payload).eq("id", form.id);
+        if (error) throw error;
+        toast.success("Token atualizado!");
+      } else {
+        const { error } = await supabase.from("sm_ai_api_keys").insert({ ...payload, created_by: currentUser?.authId ?? null });
+        if (error) throw error;
+        toast.success("Token de IA salvo!");
+      }
+      resetKeyForm(); setShowForm(false); await load();
     } catch (e: any) { toast.error(`Falha ao salvar: ${e?.message || e}`); }
     finally { setBusy(false); }
+  };
+
+  const handleFetchModels = async () => {
+    if (!form.api_key.trim()) { toast.error("Informe o token primeiro"); return; }
+    setFetchingModels(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-list-models", {
+        body: { provider: form.provider, api_key: form.api_key.trim(), base_url: form.base_url || undefined },
+      });
+      if (error) {
+        let detail = error.message;
+        try { const ctx: any = (error as any).context; if (ctx?.json) { const b = await ctx.json(); detail = b.detail || b.error || detail; } } catch { /* ignore */ }
+        toast.error(`Falha ao buscar modelos: ${detail}`);
+        return;
+      }
+      const r = data as { ok?: boolean; models?: string[] };
+      if (r?.ok && r.models?.length) {
+        setForm((f) => ({ ...f, modelsText: r.models!.join("\n") }));
+        toast.success(`${r.models.length} modelos encontrados!`);
+      } else {
+        toast.warning("Nenhum modelo retornado pelo provedor.");
+      }
+    } catch (e: any) { toast.error(`Falha ao buscar modelos: ${e?.message || e}`); }
+    finally { setFetchingModels(false); }
   };
   const handleToggleKey = async (id: string, current: boolean) => {
     await supabase.from("sm_ai_api_keys").update({ is_active: !current }).eq("id", id); await load();
@@ -375,7 +415,7 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
             <div className="flex items-center gap-2">
               <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
               <h3 className="text-xs font-semibold text-foreground uppercase tracking-wide">Tokens de API de IA</h3>
-              <button onClick={() => setShowForm(v => !v)} className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-xs font-semibold hover:bg-muted">
+              <button onClick={() => { if (showForm) { setShowForm(false); resetKeyForm(); } else { openNewKey(); } }} className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-xs font-semibold hover:bg-muted">
                 <Plus className="w-3 h-3" /> Novo token
               </button>
             </div>
@@ -401,25 +441,31 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
                   <input type="password" value={form.api_key} onChange={(e) => setForm(f => ({ ...f, api_key: e.target.value }))}
                     className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs font-mono" placeholder="sk-..." />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                {form.provider === "custom" && (
                   <div>
-                    <label className="text-[11px] text-muted-foreground block mb-1">Modelo padrão (opcional)</label>
-                    <input value={form.model} onChange={(e) => setForm(f => ({ ...f, model: e.target.value }))}
-                      className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs" placeholder="gpt-4o / claude-sonnet-4" />
+                    <label className="text-[11px] text-muted-foreground block mb-1">Base URL</label>
+                    <input value={form.base_url} onChange={(e) => setForm(f => ({ ...f, base_url: e.target.value }))}
+                      className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs font-mono" placeholder="https://..." />
                   </div>
-                  {form.provider === "custom" && (
-                    <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">Base URL</label>
-                      <input value={form.base_url} onChange={(e) => setForm(f => ({ ...f, base_url: e.target.value }))}
-                        className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs font-mono" placeholder="https://..." />
-                    </div>
-                  )}
+                )}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] text-muted-foreground">Modelos disponíveis — um por linha (o 1º é o padrão)</label>
+                    <button type="button" onClick={handleFetchModels} disabled={fetchingModels || !form.api_key.trim()}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border hover:bg-muted disabled:opacity-50" title="Buscar modelos do provedor usando o token">
+                      {fetchingModels ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Buscar modelos
+                    </button>
+                  </div>
+                  <textarea value={form.modelsText} onChange={(e) => setForm(f => ({ ...f, modelsText: e.target.value }))}
+                    rows={4} placeholder={"gpt-4o\ngpt-4o-mini\no1"}
+                    className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs font-mono resize-y" />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Vazio = usa o modelo padrão do provedor. "Buscar modelos" usa o token acima.</p>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => setShowForm(false)} className="flex-1 py-1.5 rounded-md border text-xs hover:bg-muted">Cancelar</button>
-                  <button onClick={handleAddKey} disabled={busy}
+                  <button onClick={() => { setShowForm(false); resetKeyForm(); }} className="flex-1 py-1.5 rounded-md border text-xs hover:bg-muted">Cancelar</button>
+                  <button onClick={handleSaveKey} disabled={busy}
                     className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50">
-                    {busy ? "Salvando..." : "Salvar token"}
+                    {busy ? "Salvando..." : (form.id ? "Atualizar token" : "Salvar token")}
                   </button>
                 </div>
               </div>
@@ -435,13 +481,16 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
                       {PROVIDERS.find(p => p.value === k.provider)?.label || k.provider}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-foreground truncate">{k.label || "(sem apelido)"}{k.model && <span className="text-muted-foreground"> · {k.model}</span>}</p>
+                      <p className="text-xs text-foreground truncate">{k.label || "(sem apelido)"}{k.models?.length ? <span className="text-muted-foreground"> · {k.models.length} modelo{k.models.length > 1 ? "s" : ""}</span> : k.model ? <span className="text-muted-foreground"> · {k.model}</span> : null}</p>
                       <code className="text-[11px] font-mono text-muted-foreground">{revealedKey === k.id ? k.api_key : mask(k.api_key)}</code>
                     </div>
                     <button onClick={() => setRevealedKey(revealedKey === k.id ? null : k.id)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground shrink-0">
                       {revealedKey === k.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                     <CopyButton value={k.api_key} />
+                    <button onClick={() => openEditKey(k)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground shrink-0" title="Editar / modelos">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={() => handleToggleKey(k.id, k.is_active)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground shrink-0" title={k.is_active ? "Desativar" : "Ativar"}>
                       <Power className={`w-3.5 h-3.5 ${k.is_active ? "text-success" : ""}`} />
                     </button>

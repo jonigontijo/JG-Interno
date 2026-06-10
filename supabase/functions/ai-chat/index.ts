@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
     const db = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
     const body = await req.json().catch(() => ({}));
-    const { key_id, messages, system, context } = body;
+    const { key_id, messages, system, context, model: reqModel } = body;
     if (!key_id || !Array.isArray(messages)) return json({ error: "missing_fields", required: ["key_id", "messages"] }, 400);
 
     const { data: key } = await db.from("sm_ai_api_keys").select("*").eq("id", key_id).eq("is_active", true).maybeSingle();
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
     const provider = key.provider as string;
     const def = DEFAULTS[provider] || DEFAULTS.openai;
-    const model = key.model || def.model;
+    const model = (typeof reqModel === "string" && reqModel.trim()) ? reqModel.trim() : (key.model || def.model);
     const apiKey = key.api_key as string;
 
     // monta o system prompt com o contexto da página
