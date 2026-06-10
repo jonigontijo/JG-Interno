@@ -4,7 +4,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
 import {
   Bot, Copy, Check, Loader2, KeyRound, Plus, Trash2, RefreshCw,
-  Webhook, Eye, EyeOff, Power, Send, Pencil, X,
+  Webhook, Eye, EyeOff, Power, Send, Pencil, X, Zap, Gauge, Brain,
 } from "lucide-react";
 import { WEBHOOK_EVENTS, EVENT_GROUPS, eventLabel } from "@/lib/webhookEvents";
 
@@ -15,6 +15,7 @@ interface AiKey {
   api_key: string;
   model: string | null;
   models: string[] | null;
+  model_presets: { rapido?: string; medio?: string; inteligente?: string } | null;
   base_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -79,7 +80,7 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
   const [busy, setBusy] = useState(false);
 
   // form token IA
-  const [form, setForm] = useState({ id: "", provider: "openai", label: "", api_key: "", base_url: "", modelsText: "" });
+  const [form, setForm] = useState({ id: "", provider: "openai", label: "", api_key: "", base_url: "", modelsText: "", rapido: "", medio: "", inteligente: "" });
   const [showForm, setShowForm] = useState(false);
   const [fetchingModels, setFetchingModels] = useState(false);
 
@@ -109,10 +110,11 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
 
   // ── Tokens IA ──
   const parseModels = (text: string) => [...new Set(text.split(/[\n,]/).map((s) => s.trim()).filter(Boolean))];
-  const resetKeyForm = () => setForm({ id: "", provider: "openai", label: "", api_key: "", base_url: "", modelsText: "" });
+  const resetKeyForm = () => setForm({ id: "", provider: "openai", label: "", api_key: "", base_url: "", modelsText: "", rapido: "", medio: "", inteligente: "" });
   const openNewKey = () => { resetKeyForm(); setShowForm(true); };
   const openEditKey = (k: AiKey) => {
-    setForm({ id: k.id, provider: k.provider, label: k.label || "", api_key: k.api_key, base_url: k.base_url || "", modelsText: (k.models || []).join("\n") });
+    const p = k.model_presets || {};
+    setForm({ id: k.id, provider: k.provider, label: k.label || "", api_key: k.api_key, base_url: k.base_url || "", modelsText: (k.models || []).join("\n"), rapido: p.rapido || "", medio: p.medio || "", inteligente: p.inteligente || "" });
     setShowForm(true);
   };
 
@@ -121,9 +123,13 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
     setBusy(true);
     try {
       const models = parseModels(form.modelsText);
+      const model_presets: Record<string, string> = {};
+      if (form.rapido) model_presets.rapido = form.rapido;
+      if (form.medio) model_presets.medio = form.medio;
+      if (form.inteligente) model_presets.inteligente = form.inteligente;
       const payload = {
         provider: form.provider, label: form.label || null, api_key: form.api_key.trim(),
-        base_url: form.base_url || null, models, model: models[0] || null,
+        base_url: form.base_url || null, models, model: models[0] || null, model_presets,
       };
       if (form.id) {
         const { error } = await supabase.from("sm_ai_api_keys").update(payload).eq("id", form.id);
@@ -461,6 +467,35 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
                     className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs font-mono resize-y" />
                   <p className="text-[10px] text-muted-foreground mt-0.5">Vazio = usa o modelo padrão do provedor. "Buscar modelos" usa o token acima.</p>
                 </div>
+                {(() => {
+                  const av = parseModels(form.modelsText);
+                  const sel = (val: string, set: (v: string) => void) => (
+                    <select value={val} onChange={(e) => set(e.target.value)} className="w-full px-2 py-1.5 rounded-md border bg-background text-foreground text-xs">
+                      <option value="">—</option>
+                      {av.map((m) => <option key={m} value={m}>{m}</option>)}
+                      {val && !av.includes(val) && <option value={val}>{val}</option>}
+                    </select>
+                  );
+                  return (
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">Botões rápidos no chat (opcional) — modo → modelo</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Zap className="w-3 h-3" /> Rápido</span>
+                          {sel(form.rapido, (v) => setForm((f) => ({ ...f, rapido: v })))}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Gauge className="w-3 h-3" /> Médio</span>
+                          {sel(form.medio, (v) => setForm((f) => ({ ...f, medio: v })))}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Brain className="w-3 h-3" /> Inteligente</span>
+                          {sel(form.inteligente, (v) => setForm((f) => ({ ...f, inteligente: v })))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => { setShowForm(false); resetKeyForm(); }} className="flex-1 py-1.5 rounded-md border text-xs hover:bg-muted">Cancelar</button>
                   <button onClick={handleSaveKey} disabled={busy}

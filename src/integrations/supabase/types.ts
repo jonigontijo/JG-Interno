@@ -1331,6 +1331,7 @@ export type Database = {
           is_active: boolean
           label: string | null
           model: string | null
+          model_presets: Json
           models: string[]
           provider: string
           updated_at: string
@@ -1344,6 +1345,7 @@ export type Database = {
           is_active?: boolean
           label?: string | null
           model?: string | null
+          model_presets?: Json
           models?: string[]
           provider: string
           updated_at?: string
@@ -1357,6 +1359,7 @@ export type Database = {
           is_active?: boolean
           label?: string | null
           model?: string | null
+          model_presets?: Json
           models?: string[]
           provider?: string
           updated_at?: string
