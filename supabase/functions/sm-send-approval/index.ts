@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
     const payload = {
       aprovacao: {
         id: appr.id,
+        cliente_id: appr.client_id ?? null,
         cliente_name: appr.client_name ?? null,
         social_media_responsavel: appr.social_media_responsavel ?? null,
         tipo_conteudo: appr.piece_type ?? null,
