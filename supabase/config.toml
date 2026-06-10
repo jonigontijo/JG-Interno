@@ -9,6 +9,11 @@ verify_jwt = false
 [functions.sm-fire-event]
 verify_jwt = false
 
+# Envia aprovação (payload estruturado) aos webhooks — exige login (JWT do usuário).
+# O token de callback fica no servidor, não é exposto ao front.
+[functions.sm-send-approval]
+verify_jwt = true
+
 # Callback OAuth do Google Sheets — chamado pelo Google sem JWT.
 [functions.google-sheets-oauth-callback]
 verify_jwt = false

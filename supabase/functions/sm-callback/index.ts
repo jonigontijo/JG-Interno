@@ -46,8 +46,13 @@ Deno.serve(async (req) => {
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const db = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
 
-    // 1) Valida o segredo
-    const provided = req.headers.get("x-jg-secret") || "";
+    // 1) Lê o body
+    const body = await req.json().catch(() => ({}));
+    const action = String(body.action || "");
+
+    // 2) Valida o segredo — aceita no header "x-jg-secret" OU no campo "token" do corpo
+    //    (o webhook de aprovação envia callback.token; o n8n pode devolver { token, ... }).
+    const provided = req.headers.get("x-jg-secret") || body.token || "";
     const { data: settings } = await db
       .from("sm_integration_settings")
       .select("callback_secret")
@@ -55,12 +60,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!settings?.callback_secret || provided !== settings.callback_secret) {
-      return json({ error: "unauthorized", message: "segredo inválido ou ausente (header x-jg-secret)" }, 401);
+      return json({ error: "unauthorized", message: "segredo inválido ou ausente (header x-jg-secret ou campo token no corpo)" }, 401);
     }
-
-    // 2) Lê o body
-    const body = await req.json().catch(() => ({}));
-    const action = String(body.action || "");
 
     switch (action) {
       // ─────────────────────────────────────────────

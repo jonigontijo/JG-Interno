@@ -1494,15 +1494,24 @@ export type Database = {
         Row: {
           client_feedback: string | null
           client_id: string
+          client_name: string | null
           client_responded_at: string | null
           created_at: string
           created_by: string | null
+          data_publicacao_prevista: string | null
+          description: string | null
           id: string
+          legenda_sugerida: string | null
+          observacoes_internas: string | null
           piece_file_path: string | null
           piece_type: string
           piece_url: string | null
-          post_id: string
+          plataforma: string | null
+          post_id: string | null
+          prazo_resposta: string | null
+          social_media_responsavel: string | null
           status: Database["public"]["Enums"]["sm_approval_status"]
+          title: string | null
           updated_at: string
           webhook_response: Json | null
           webhook_sent_at: string | null
@@ -1510,15 +1519,24 @@ export type Database = {
         Insert: {
           client_feedback?: string | null
           client_id: string
+          client_name?: string | null
           client_responded_at?: string | null
           created_at?: string
           created_by?: string | null
+          data_publicacao_prevista?: string | null
+          description?: string | null
           id?: string
+          legenda_sugerida?: string | null
+          observacoes_internas?: string | null
           piece_file_path?: string | null
           piece_type?: string
           piece_url?: string | null
-          post_id: string
+          plataforma?: string | null
+          post_id?: string | null
+          prazo_resposta?: string | null
+          social_media_responsavel?: string | null
           status?: Database["public"]["Enums"]["sm_approval_status"]
+          title?: string | null
           updated_at?: string
           webhook_response?: Json | null
           webhook_sent_at?: string | null
@@ -1526,15 +1544,24 @@ export type Database = {
         Update: {
           client_feedback?: string | null
           client_id?: string
+          client_name?: string | null
           client_responded_at?: string | null
           created_at?: string
           created_by?: string | null
+          data_publicacao_prevista?: string | null
+          description?: string | null
           id?: string
+          legenda_sugerida?: string | null
+          observacoes_internas?: string | null
           piece_file_path?: string | null
           piece_type?: string
           piece_url?: string | null
-          post_id?: string
+          plataforma?: string | null
+          post_id?: string | null
+          prazo_resposta?: string | null
+          social_media_responsavel?: string | null
           status?: Database["public"]["Enums"]["sm_approval_status"]
+          title?: string | null
           updated_at?: string
           webhook_response?: Json | null
           webhook_sent_at?: string | null

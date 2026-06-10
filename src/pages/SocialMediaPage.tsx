@@ -18,6 +18,8 @@ import DingyTabContainer from "@/components/social/DingyTabContainer";
 import GoogleCalendarIntegration from "@/components/settings/GoogleCalendarIntegration";
 import GoogleSheetsIntegration from "@/components/settings/GoogleSheetsIntegration";
 import PostagensPlanilha from "@/components/social/PostagensPlanilha";
+import AprovacoesPanel from "@/components/social/AprovacoesPanel";
+import ClientesSMPanel from "@/components/social/ClientesSMPanel";
 import GoogleIntegrationSetupModal, { type IntegrationFormData } from "@/components/settings/GoogleIntegrationSetupModal";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -130,7 +132,7 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"calendar" | "planilha" | "dingy" | "briefings" | "integrations">("calendar");
+  const [activeTab, setActiveTab] = useState<"calendar" | "planilha" | "aprovacoes" | "clientes_sm" | "dingy" | "briefings" | "integrations">("calendar");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -437,6 +439,8 @@ export default function SocialMediaPage() {
   const tabs = [
     { key: "calendar", label: "Agenda", icon: CalendarIcon },
     { key: "planilha", label: "Planilha", icon: FileSpreadsheet },
+    { key: "aprovacoes", label: "Aprovações", icon: CheckCircle },
+    { key: "clientes_sm", label: "Clientes SM", icon: Users },
     { key: "dingy", label: "Dingy", icon: Film },
     { key: "briefings", label: "Briefing Clientes", icon: ClipboardList },
     { key: "integrations", label: "Integrações", icon: Plug },
@@ -470,6 +474,16 @@ export default function SocialMediaPage() {
       {/* Planilha Tab - espelho editável multi-aba da planilha de postagens (Google Sheets) */}
       {activeTab === "planilha" && (
         <PostagensPlanilha />
+      )}
+
+      {/* Aprovações Tab - fluxo de aprovação de conteúdo (Módulo 5) */}
+      {activeTab === "aprovacoes" && (
+        <AprovacoesPanel />
+      )}
+
+      {/* Clientes SM Tab - gestão de configurações por cliente (Módulo 4) */}
+      {activeTab === "clientes_sm" && (
+        <ClientesSMPanel />
       )}
 
       {/* Calendar Tab - usa o RecordingsCalendar (FullCalendar estilo Google Agenda) */}
