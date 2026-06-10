@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAIContextStore } from "@/store/useAIContextStore";
 import { toast } from "sonner";
-import { Bot, X, Send, Loader2, Sparkles, Eye } from "lucide-react";
+import { Bot, X, Send, Loader2, Sparkles, Eye, MessageSquarePlus } from "lucide-react";
 
 interface AiKey { id: string; provider: string; label: string | null; model: string | null; models: string[] | null; }
 interface ChatMsg { role: "user" | "assistant"; content: string; }
@@ -119,6 +119,8 @@ export default function FloatingAIChat() {
     } finally { setSending(false); }
   };
 
+  const newChat = () => { setMessages([]); setInput(""); };
+
 
   return (
     <>
@@ -152,7 +154,11 @@ export default function FloatingAIChat() {
                 <Eye className="w-2.5 h-2.5 shrink-0" /> vendo: {ctxLabel || location.pathname}
               </p>
             </div>
-            <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
+            <button onClick={newChat} disabled={messages.length === 0 && !input.trim()}
+              className="p-1 rounded hover:bg-muted text-muted-foreground disabled:opacity-40" title="Novo chat (limpar conversa)">
+              <MessageSquarePlus className="w-4 h-4" />
+            </button>
+            <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-muted text-muted-foreground" title="Fechar"><X className="w-4 h-4" /></button>
           </div>
 
           {/* seletor de modelo */}
