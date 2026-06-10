@@ -1503,7 +1503,11 @@ export type Database = {
           id: string
           legenda_sugerida: string | null
           observacoes_internas: string | null
+          piece_delivery: string
+          piece_file_name: string | null
           piece_file_path: string | null
+          piece_format: string | null
+          piece_size_bytes: number | null
           piece_type: string
           piece_url: string | null
           plataforma: string | null
@@ -1528,7 +1532,11 @@ export type Database = {
           id?: string
           legenda_sugerida?: string | null
           observacoes_internas?: string | null
+          piece_delivery?: string
+          piece_file_name?: string | null
           piece_file_path?: string | null
+          piece_format?: string | null
+          piece_size_bytes?: number | null
           piece_type?: string
           piece_url?: string | null
           plataforma?: string | null
@@ -1553,7 +1561,11 @@ export type Database = {
           id?: string
           legenda_sugerida?: string | null
           observacoes_internas?: string | null
+          piece_delivery?: string
+          piece_file_name?: string | null
           piece_file_path?: string | null
+          piece_format?: string | null
+          piece_size_bytes?: number | null
           piece_type?: string
           piece_url?: string | null
           plataforma?: string | null

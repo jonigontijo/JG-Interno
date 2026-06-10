@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Plus, RefreshCw, Loader2, Search, ExternalLink, Trash2, Send, Eye,
-  CheckCircle2, XCircle, Clock, RotateCcw, MessageSquare,
+  CheckCircle2, XCircle, Clock, RotateCcw, MessageSquare, Paperclip, FileText,
 } from "lucide-react";
 
 // ── Tipos ──
@@ -26,6 +26,10 @@ interface Approval {
   data_publicacao_prevista: string | null;
   description: string | null;          // descricao_post
   piece_url: string | null;            // conteudo
+  piece_delivery: string;              // 'link' | 'upload'
+  piece_file_name: string | null;
+  piece_format: string | null;
+  piece_size_bytes: number | null;
   legenda_sugerida: string | null;
   observacoes_internas: string | null;
   prazo_resposta: string | null;
@@ -64,6 +68,8 @@ const fmtDateTime = (d: string | null) => {
 };
 // datetime-local ("2026-06-15T10:00") -> ISO UTC; a hora digitada é enviada como UTC
 const toUtcIso = (local: string) => (local ? new Date(local + "Z").toISOString() : null);
+// tamanho legível
+const fmtSize = (b: number) => (!b ? "" : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`);
 
 const emptyForm = {
   clientId: "",
@@ -74,6 +80,10 @@ const emptyForm = {
   data_publicacao_prevista: "",
   prazo_resposta: "",
   pieceUrl: "",
+  piece_delivery: "link",
+  piece_file_name: "",
+  piece_format: "",
+  piece_size_bytes: 0,
   description: "",
   legenda_sugerida: "",
   observacoes_internas: "",
@@ -95,6 +105,7 @@ export default function AprovacoesPanel() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ApprovalStatus>("all");
@@ -184,6 +195,30 @@ export default function AprovacoesPanel() {
     else toast.warning("Falha ao disparar o webhook.");
   };
 
+  // ── Upload de arquivo para o Storage (bucket público sm-aprovacoes) ──
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+      const path = `${Date.now()}_${safe}`;
+      const { error } = await supabase.storage.from("sm-aprovacoes").upload(path, file, {
+        contentType: file.type || undefined, upsert: false,
+      });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from("sm-aprovacoes").getPublicUrl(path);
+      setForm((f) => ({
+        ...f, pieceUrl: pub.publicUrl, piece_delivery: "upload",
+        piece_file_name: file.name, piece_format: ext, piece_size_bytes: file.size,
+      }));
+      toast.success("Arquivo enviado!");
+    } catch (e: any) {
+      toast.error(`Falha no upload: ${e?.message || e}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // ── Criar aprovação ──
   const handleCreate = async () => {
     if (!form.clientId) { toast.error("Selecione o cliente"); return; }
@@ -207,6 +242,10 @@ export default function AprovacoesPanel() {
           data_publicacao_prevista: toUtcIso(form.data_publicacao_prevista),
           prazo_resposta: toUtcIso(form.prazo_resposta),
           piece_url: form.pieceUrl.trim(),
+          piece_delivery: form.piece_delivery,
+          piece_file_name: form.piece_file_name || null,
+          piece_format: form.piece_format || null,
+          piece_size_bytes: form.piece_size_bytes || null,
           description: form.description.trim() || null,
           legenda_sugerida: form.legenda_sugerida.trim() || null,
           observacoes_internas: form.observacoes_internas.trim() || null,
@@ -458,9 +497,28 @@ export default function AprovacoesPanel() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground block mb-1.5">Conteúdo — link da peça * <span className="text-muted-foreground font-normal">(imagem, vídeo ou pasta do Drive)</span></label>
-            <input value={form.pieceUrl} onChange={(e) => setForm((f) => ({ ...f, pieceUrl: e.target.value }))}
+            <label className="text-xs font-medium text-foreground block mb-1.5">Conteúdo da peça * <span className="text-muted-foreground font-normal">(cole um link ou envie um arquivo)</span></label>
+            <input value={form.pieceUrl}
+              onChange={(e) => setForm((f) => ({ ...f, pieceUrl: e.target.value, piece_delivery: "link", piece_file_name: "", piece_format: "", piece_size_bytes: 0 }))}
               placeholder="https://drive.google.com/..." className="w-full px-3 py-2 rounded-md border bg-background text-xs text-foreground placeholder:text-muted-foreground font-mono" />
+            <div className="flex items-center gap-2 mt-2">
+              <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs cursor-pointer hover:bg-muted transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                {uploading ? "Enviando..." : "Enviar arquivo"}
+                <input type="file" className="hidden"
+                  accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
+                  onChange={(e) => { const file = e.target.files?.[0]; const el = e.currentTarget; if (file) handleFileUpload(file); el.value = ""; }} />
+              </label>
+              <span className="text-[10px] text-muted-foreground">PDF, DOC, PPT, XLS, imagem, vídeo… (até 100 MB)</span>
+            </div>
+            {form.piece_delivery === "upload" && form.piece_file_name && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
+                <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="truncate flex-1">{form.piece_file_name}</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">{form.piece_format?.toUpperCase()}{form.piece_size_bytes ? ` · ${fmtSize(form.piece_size_bytes)}` : ""}</span>
+                <a href={form.pieceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>
+              </div>
+            )}
           </div>
 
           <div>
@@ -526,10 +584,20 @@ export default function AprovacoesPanel() {
             </div>
 
             {selected.piece_url && (
-              <a href={selected.piece_url.startsWith("http") ? selected.piece_url : `https://${selected.piece_url}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-primary hover:underline break-all">
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" /> {selected.piece_url}
-              </a>
+              selected.piece_delivery === "upload" && selected.piece_file_name ? (
+                <a href={selected.piece_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm bg-muted/30 border rounded-md px-2.5 py-2 hover:bg-muted/50 transition-colors">
+                  <FileText className="w-4 h-4 text-primary shrink-0" />
+                  <span className="truncate flex-1 text-foreground">{selected.piece_file_name}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{selected.piece_format?.toUpperCase()}{selected.piece_size_bytes ? ` · ${fmtSize(selected.piece_size_bytes)}` : ""}</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
+                </a>
+              ) : (
+                <a href={selected.piece_url.startsWith("http") ? selected.piece_url : `https://${selected.piece_url}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-primary hover:underline break-all">
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0" /> {selected.piece_url}
+                </a>
+              )
             )}
 
             {selected.description && (

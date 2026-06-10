@@ -51,22 +51,28 @@ function toIso(d: string | null): string | null {
   return dt.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-// monta o objeto "conteudo" a partir do link da peça (entrega por link)
-function buildConteudo(url: string | null) {
+// monta o objeto "conteudo": usa os metadados do upload e cai pro link quando não houver
+function buildConteudo(appr: Record<string, unknown>) {
+  const url = (appr.piece_url as string | null) ?? null;
   const out = {
-    tipo_entrega: "link",
-    url: url ?? null,
-    nome_arquivo: null as string | null,
-    formato: null as string | null,
-    tamanho_bytes: null as number | null,
+    tipo_entrega: (appr.piece_delivery as string) || "link",
+    url,
+    nome_arquivo: (appr.piece_file_name as string | null) ?? null,
+    formato: (appr.piece_format as string | null) ?? null,
+    tamanho_bytes: (appr.piece_size_bytes as number | null) ?? null,
   };
-  if (!url) return out;
-  try {
-    const clean = url.split("?")[0].split("#")[0];
-    const seg = decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1));
-    const m = seg.match(/\.([a-zA-Z0-9]{2,5})$/);
-    if (m) { out.nome_arquivo = seg; out.formato = m[1].toLowerCase(); }
-  } catch { /* ignora URL malformada */ }
+  // fallback: deriva nome/formato a partir da URL quando não veio de upload
+  if ((!out.nome_arquivo || !out.formato) && url) {
+    try {
+      const clean = url.split("?")[0].split("#")[0];
+      const seg = decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1));
+      const m = seg.match(/\.([a-zA-Z0-9]{2,5})$/);
+      if (m) {
+        out.nome_arquivo = out.nome_arquivo || seg;
+        out.formato = out.formato || m[1].toLowerCase();
+      }
+    } catch { /* ignora URL malformada */ }
+  }
   return out;
 }
 
@@ -117,7 +123,7 @@ Deno.serve(async (req) => {
         plataforma: (plataforma && PLAT_MAP[plataforma]) ?? (plataforma ? plataforma.toLowerCase() : null),
         data_publicacao_prevista: toIso(appr.data_publicacao_prevista),
         descricao_post: appr.description ?? null,
-        conteudo: buildConteudo(appr.piece_url),
+        conteudo: buildConteudo(appr as Record<string, unknown>),
         legenda_sugerida: appr.legenda_sugerida ?? null,
         prazo_resposta: toIso(appr.prazo_resposta),
       },
