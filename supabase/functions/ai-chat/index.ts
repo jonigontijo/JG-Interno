@@ -11,6 +11,13 @@ const corsHeaders = {
 function json(b: unknown, s = 200) {
   return new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+// extrai a mensagem de erro do provedor (em vez do JSON cru)
+async function providerError(r: Response) {
+  const text = await r.text();
+  let msg = text;
+  try { const j = JSON.parse(text); msg = j?.error?.message || j?.error?.message?.[0] || j?.message || text; } catch { /* mantém texto bruto */ }
+  return json({ error: "provider_error", detail: String(msg).slice(0, 500) }, 502);
+}
 
 const DEFAULTS: Record<string, { base?: string; model: string }> = {
   openai:     { base: "https://api.openai.com/v1",        model: "gpt-4o-mini" },
@@ -64,7 +71,7 @@ Deno.serve(async (req) => {
           messages: messages.map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
         }),
       });
-      if (!r.ok) return json({ error: "provider_error", detail: (await r.text()).slice(0, 400) }, 502);
+      if (!r.ok) return await providerError(r);
       const j = await r.json();
       reply = (j.content || []).map((c: any) => c.text).filter(Boolean).join("\n");
     } else if (provider === "google") {
@@ -74,7 +81,7 @@ Deno.serve(async (req) => {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: systemPrompt }] }, contents }),
       });
-      if (!r.ok) return json({ error: "provider_error", detail: (await r.text()).slice(0, 400) }, 502);
+      if (!r.ok) return await providerError(r);
       const j = await r.json();
       reply = (j.candidates?.[0]?.content?.parts || []).map((p: any) => p.text).filter(Boolean).join("\n");
     } else {
@@ -89,7 +96,7 @@ Deno.serve(async (req) => {
           temperature: 0.4,
         }),
       });
-      if (!r.ok) return json({ error: "provider_error", detail: (await r.text()).slice(0, 400) }, 502);
+      if (!r.ok) return await providerError(r);
       const j = await r.json();
       reply = j.choices?.[0]?.message?.content || "";
     }

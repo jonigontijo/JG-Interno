@@ -110,7 +110,19 @@ export default function FloatingAIChat() {
       const { data, error } = await supabase.functions.invoke("ai-chat", {
         body: { key_id: keyId, model: model || undefined, messages: newMsgs, context: buildContext() },
       });
-      if (error) throw error;
+      if (error) {
+        // extrai o motivo real do corpo da resposta (modelo inexistente, token inválido, etc.)
+        let detail = error.message || "erro";
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const b = await ctx.json();
+            detail = b?.detail || b?.error || detail;
+          }
+        } catch { /* ignore */ }
+        setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${detail}` }]);
+        return;
+      }
       const r = data as { ok?: boolean; reply?: string; error?: string; detail?: string };
       if (r.ok && r.reply) setMessages((m) => [...m, { role: "assistant", content: r.reply! }]);
       else setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${r.error || "erro"}${r.detail ? ": " + r.detail : ""}` }]);
