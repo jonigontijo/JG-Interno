@@ -112,7 +112,7 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
     try {
       const { error } = await supabase.from("sm_ai_api_keys").insert({
         provider: form.provider, label: form.label || null, api_key: form.api_key.trim(),
-        model: form.model || null, base_url: form.base_url || null, created_by: currentUser?.id ?? null,
+        model: form.model || null, base_url: form.base_url || null, created_by: currentUser?.authId ?? null,
       });
       if (error) throw error;
       toast.success("Token de IA salvo!");
@@ -137,7 +137,7 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
     try {
       const newSecret = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
       const { error } = await supabase.from("sm_integration_settings")
-        .update({ callback_secret: newSecret, updated_by: currentUser?.id ?? null }).eq("id", 1);
+        .update({ callback_secret: newSecret, updated_by: currentUser?.authId ?? null }).eq("id", 1);
       if (error) throw error;
       toast.success("Novo segredo gerado!"); await load();
     } catch (e: any) { toast.error(`Falha: ${e?.message || e}`); }
@@ -167,7 +167,7 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
         if (error) throw error;
         toast.success("Webhook atualizado!");
       } else {
-        const { error } = await supabase.from("sm_webhooks").insert({ ...payload, created_by: currentUser?.id ?? null });
+        const { error } = await supabase.from("sm_webhooks").insert({ ...payload, created_by: currentUser?.authId ?? null });
         if (error) throw error;
         toast.success("Webhook cadastrado!");
       }
