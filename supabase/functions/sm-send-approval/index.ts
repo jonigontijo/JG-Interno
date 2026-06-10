@@ -31,6 +31,45 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// piece_type (interno) -> tipo_conteudo (contrato)
+const TIPO_MAP: Record<string, string> = {
+  static: "estatico", carousel: "carrossel", video: "video",
+  reels: "reels", story: "story", outro: "outro",
+};
+// rótulo da plataforma -> slug em minúsculo
+const PLAT_MAP: Record<string, string> = {
+  "Instagram": "instagram", "Facebook": "facebook", "TikTok": "tiktok",
+  "YouTube": "youtube", "LinkedIn": "linkedin", "X / Twitter": "twitter",
+  "Pinterest": "pinterest", "Outro": "outro",
+};
+
+// normaliza data/hora para ISO 8601 com "Z" e sem milissegundos
+function toIso(d: string | null): string | null {
+  if (!d) return null;
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return d;
+  return dt.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+// monta o objeto "conteudo" a partir do link da peça (entrega por link)
+function buildConteudo(url: string | null) {
+  const out = {
+    tipo_entrega: "link",
+    url: url ?? null,
+    nome_arquivo: null as string | null,
+    formato: null as string | null,
+    tamanho_bytes: null as number | null,
+  };
+  if (!url) return out;
+  try {
+    const clean = url.split("?")[0].split("#")[0];
+    const seg = decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1));
+    const m = seg.match(/\.([a-zA-Z0-9]{2,5})$/);
+    if (m) { out.nome_arquivo = seg; out.formato = m[1].toLowerCase(); }
+  } catch { /* ignora URL malformada */ }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -62,21 +101,25 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .contains("events", ["approval.created"]);
 
-    // 4) Payload EXATO
+    // 4) Payload — contrato nova_aprovacao v1.0
+    const piece_type = appr.piece_type as string | null;
+    const plataforma = appr.plataforma as string | null;
     const payload = {
+      evento: "nova_aprovacao",
+      versao: "1.0",
+      timestamp: toIso(new Date().toISOString()),
       aprovacao: {
         id: appr.id,
         cliente_id: appr.client_id ?? null,
-        cliente_name: appr.client_name ?? null,
+        cliente_nome: appr.client_name ?? null,
         social_media_responsavel: appr.social_media_responsavel ?? null,
-        tipo_conteudo: appr.piece_type ?? null,
-        plataforma: appr.plataforma ?? null,
-        data_publicacao_prevista: appr.data_publicacao_prevista ?? null,
+        tipo_conteudo: (piece_type && TIPO_MAP[piece_type]) ?? piece_type ?? null,
+        plataforma: (plataforma && PLAT_MAP[plataforma]) ?? (plataforma ? plataforma.toLowerCase() : null),
+        data_publicacao_prevista: toIso(appr.data_publicacao_prevista),
         descricao_post: appr.description ?? null,
-        conteudo: appr.piece_url ?? null,
+        conteudo: buildConteudo(appr.piece_url),
         legenda_sugerida: appr.legenda_sugerida ?? null,
-        observacoes_internas: appr.observacoes_internas ?? null,
-        prazo_resposta: appr.prazo_resposta ?? null,
+        prazo_resposta: toIso(appr.prazo_resposta),
       },
       callback: {
         url_resposta: `${supabaseUrl}/functions/v1/sm-callback`,

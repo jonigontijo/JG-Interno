@@ -56,7 +56,14 @@ const STATUS_META: Record<ApprovalStatus, { label: string; cls: string; icon: ty
   revisao_solicitada:  { label: "Revisão solicitada",  cls: "bg-info/15 text-info border-info/30",                icon: RotateCcw },
 };
 
-const fmtDate = (d: string | null) => (d ? d.split("-").reverse().join("/") : "—");
+// exibe ISO ("2026-06-15T10:00:00Z") como "15/06/2026 10:00" (hora UTC = a que foi digitada)
+const fmtDateTime = (d: string | null) => {
+  if (!d) return "—";
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : d;
+};
+// datetime-local ("2026-06-15T10:00") -> ISO UTC; a hora digitada é enviada como UTC
+const toUtcIso = (local: string) => (local ? new Date(local + "Z").toISOString() : null);
 
 const emptyForm = {
   clientId: "",
@@ -197,8 +204,8 @@ export default function AprovacoesPanel() {
           social_media_responsavel: form.social_media_responsavel.trim() || null,
           piece_type: form.piece_type,
           plataforma: form.plataforma || null,
-          data_publicacao_prevista: form.data_publicacao_prevista || null,
-          prazo_resposta: form.prazo_resposta || null,
+          data_publicacao_prevista: toUtcIso(form.data_publicacao_prevista),
+          prazo_resposta: toUtcIso(form.prazo_resposta),
           piece_url: form.pieceUrl.trim(),
           description: form.description.trim() || null,
           legenda_sugerida: form.legenda_sugerida.trim() || null,
@@ -361,7 +368,7 @@ export default function AprovacoesPanel() {
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{a.client_name || "—"}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{a.plataforma || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{fmtDate(a.data_publicacao_prevista)}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{fmtDateTime(a.data_publicacao_prevista)}</td>
                   <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
@@ -440,12 +447,12 @@ export default function AprovacoesPanel() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Data de publicação prevista</label>
-              <input type="date" value={form.data_publicacao_prevista} onChange={(e) => setForm((f) => ({ ...f, data_publicacao_prevista: e.target.value }))}
+              <input type="datetime-local" value={form.data_publicacao_prevista} onChange={(e) => setForm((f) => ({ ...f, data_publicacao_prevista: e.target.value }))}
                 className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
             </div>
             <div>
               <label className="text-xs font-medium text-foreground block mb-1.5">Prazo de resposta do cliente</label>
-              <input type="date" value={form.prazo_resposta} onChange={(e) => setForm((f) => ({ ...f, prazo_resposta: e.target.value }))}
+              <input type="datetime-local" value={form.prazo_resposta} onChange={(e) => setForm((f) => ({ ...f, prazo_resposta: e.target.value }))}
                 className="w-full px-3 py-2 rounded-md border bg-background text-sm text-foreground" />
             </div>
           </div>
@@ -508,8 +515,8 @@ export default function AprovacoesPanel() {
                 ["Responsável", selected.social_media_responsavel],
                 ["Tipo", pieceLabel(selected.piece_type)],
                 ["Plataforma", selected.plataforma],
-                ["Publicação prevista", fmtDate(selected.data_publicacao_prevista)],
-                ["Prazo de resposta", fmtDate(selected.prazo_resposta)],
+                ["Publicação prevista", fmtDateTime(selected.data_publicacao_prevista)],
+                ["Prazo de resposta", fmtDateTime(selected.prazo_resposta)],
               ].map(([label, val], i) => (
                 <div key={i} className="p-2.5 rounded-md border bg-muted/20">
                   <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
