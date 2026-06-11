@@ -5,12 +5,14 @@ import { useAIContextStore } from "@/store/useAIContextStore";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-import { Bot, X, Send, Loader2, Sparkles, Eye, MessageSquarePlus, Zap, Gauge, Brain, CalendarPlus, Check, AlertTriangle } from "lucide-react";
+import { Bot, X, Send, Loader2, Sparkles, Eye, MessageSquarePlus, Zap, Gauge, Brain, Check, AlertTriangle } from "lucide-react";
+import {
+  buildActionsSystemPrompt, extractAction, executeAction, previewAction, getActionDef,
+  type PendingAction, type ActionState, type ActionContext,
+} from "@/lib/aiActions";
 
 interface ModelPresets { rapido?: string; medio?: string; inteligente?: string }
 interface AiKey { id: string; provider: string; label: string | null; model: string | null; models: string[] | null; model_presets: ModelPresets | null; }
-type ActionState = "pending" | "running" | "done" | "cancelled" | "error";
-interface PendingAction { tipo: string; dados: Record<string, any>; }
 interface ChatMsg { role: "user" | "assistant"; content: string; action?: PendingAction; actionState?: ActionState; actionResult?: string; }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -20,81 +22,6 @@ const PROVIDER_LABEL: Record<string, string> = {
 const POS_KEY = "jg_ai_chat_pos";
 const KEY_KEY = "jg_ai_chat_keyid";
 
-// ── parsing de ações vindas da IA ──────────────────────────────────────────
-const norm = (s: string) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-
-// extrai um objeto JSON balanceado que contenha "tipo" (mesmo cercado por ```)
-function findJsonWithTipo(text: string): string | null {
-  const idx = text.indexOf('"tipo"');
-  if (idx < 0) return null;
-  const start = text.lastIndexOf("{", idx);
-  if (start < 0) return null;
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}") { depth--; if (depth === 0) return text.slice(start, i + 1); }
-  }
-  return null;
-}
-
-function extractAction(text: string): { clean: string; action: PendingAction | null } {
-  const raw = findJsonWithTipo(text);
-  if (!raw) return { clean: text, action: null };
-  let action: PendingAction | null = null;
-  try { action = JSON.parse(raw); } catch { return { clean: text, action: null }; }
-  if (!action || typeof action.tipo !== "string") return { clean: text, action: null };
-  let clean = text.replace(raw, "");
-  clean = clean.replace(/```(?:jg-action|json)?/gi, "").trim();
-  return { clean, action };
-}
-
-function resolveClient(clients: { id: string; name: string }[], name: string) {
-  const q = norm(name);
-  if (!q) return null;
-  return clients.find((c) => norm(c.name) === q)
-    || clients.find((c) => norm(c.name).includes(q) || q.includes(norm(c.name)))
-    || null;
-}
-
-function fmtDateBR(iso?: string) {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || "—";
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-}
-
-// data/hora atual no fuso de Brasília (resolvida no cliente)
-function nowBrasilia() {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
-      weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false,
-    }).formatToParts(new Date()).map((p) => [p.type, p.value]),
-  ) as Record<string, string>;
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, weekday: parts.weekday, time: `${parts.hour}:${parts.minute}` };
-}
-
-// system prompt com as capacidades de ação. Enviado no campo `system` da edge function,
-// então não exige redeploy: a IA aprende a emitir o bloco ```jg-action```.
-function buildSystemPrompt(): string {
-  const n = nowBrasilia();
-  return `Você é o assistente do sistema interno da JG (agência de marketing). Responda em português do Brasil, de forma objetiva e útil.
-
-## Ações que você pode executar no sistema
-Você NÃO apenas responde: você pode preparar ações reais. Quando o usuário pedir CLARAMENTE para criar/agendar/marcar uma gravação, escreva uma frase curta confirmando o que entendeu e, no FINAL da resposta, inclua EXATAMENTE um bloco de ação cercado por três crases com a tag jg-action:
-
-\`\`\`jg-action
-{"tipo":"criar_gravacao","dados":{"titulo":"","cliente_nome":"","data":"YYYY-MM-DD","inicio":"HH:MM","fim":"HH:MM","local":"","descricao":"","responsavel":""}}
-\`\`\`
-
-Regras:
-- Hoje é ${n.weekday}, ${n.date}, ${n.time} (horário de Brasília). Use isso para resolver "hoje", "amanhã", "depois de amanhã", "semana que vem", etc.
-- "data" sempre no formato YYYY-MM-DD. "inicio"/"fim" no formato HH:MM (24h). Se o usuário não informar o horário de fim, use 1 hora após o início.
-- "cliente_nome": o nome do cliente exatamente como o usuário falou (o sistema resolve o ID sozinho). Se o usuário não citar cliente, deixe "".
-- Deixe vazio ("") qualquer campo que o usuário não tenha informado — NUNCA invente dados.
-- Só inclua o bloco quando for um pedido de CRIAÇÃO. Para perguntas, consultas ou resumos, responda normalmente, SEM bloco.
-- Não descreva o JSON em texto nem repita os campos fora do bloco; o card de confirmação já mostra tudo ao usuário.`;
-}
-
 export default function FloatingAIChat() {
   const location = useLocation();
   const ctxLabel = useAIContextStore((s) => s.label);
@@ -102,6 +29,8 @@ export default function FloatingAIChat() {
   const clients = useAppStore((s) => s.clients);
   const team = useAppStore((s) => s.team);
   const currentUserName = useAuthStore((s) => s.currentUser?.name) || "";
+  const currentUserId = useAuthStore((s) => s.currentUser?.id) || "";
+  const currentUserAuthId = useAuthStore((s) => s.currentUser?.authId) || null;
 
   const [open, setOpen] = useState(false);
   const [keys, setKeys] = useState<AiKey[]>([]);
@@ -203,7 +132,7 @@ export default function FloatingAIChat() {
       const keyId = sep >= 0 ? selectedKey.slice(0, sep) : selectedKey;
       const model = sep >= 0 ? selectedKey.slice(sep + 2) : "";
       const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: { key_id: keyId, model: model || undefined, messages: newMsgs, system: buildSystemPrompt(), context: buildContext() },
+        body: { key_id: keyId, model: model || undefined, messages: newMsgs, system: buildActionsSystemPrompt(), context: buildContext() },
       });
       if (error) {
         // extrai o motivo real do corpo da resposta (modelo inexistente, token inválido, etc.)
@@ -235,35 +164,11 @@ export default function FloatingAIChat() {
     } finally { setSending(false); }
   };
 
-  // executa a ação "criar_gravacao": resolve cliente/responsável e insere em recordings
-  const executeCriarGravacao = async (d: Record<string, any>): Promise<{ ok: boolean; msg: string }> => {
-    if (!d.data || !/^\d{4}-\d{2}-\d{2}$/.test(d.data)) return { ok: false, msg: "Data inválida ou ausente." };
-    const client = resolveClient(clients, d.cliente_nome || "");
-    const member = (d.responsavel ? team.find((t) => norm(t.name) === norm(d.responsavel) || norm(t.name).includes(norm(d.responsavel))) : null) || null;
-    const payload = {
-      title: d.titulo || "Gravação",
-      description: d.descricao || "",
-      date: d.data,
-      start_time: d.inicio || "09:00",
-      end_time: d.fim || null,
-      location: d.local || "",
-      responsible_name: member?.name || null,
-      participants: [] as string[],
-      status: "agendado",
-      color: "#FBBF24",
-      notes: "",
-      roteiro: "",
-      roteiro_sent: false,
-      client_id: client?.id || null,
-      client_name: client?.name || (d.cliente_nome || null),
-      created_by: currentUserName || "IA",
-    };
-    const { data: rec, error } = await supabase.from("recordings").insert(payload).select().single();
-    if (error) return { ok: false, msg: error.message };
-    // sync best-effort com o Google Calendar (não bloqueia)
-    try { await supabase.functions.invoke("google-calendar-push", { body: { action: "upsert", recording_id: (rec as { id: string }).id } }); } catch { /* ignore */ }
-    return { ok: true, msg: `Gravação "${payload.title}" agendada para ${fmtDateBR(payload.date)} às ${payload.start_time}.` };
-  };
+  // contexto passado às ações (resolução de cliente/responsável + autoria)
+  const actionCtx: ActionContext = useMemo(
+    () => ({ clients, team, currentUserName, currentUserId, currentUserAuthId }),
+    [clients, team, currentUserName, currentUserId, currentUserAuthId],
+  );
 
   const confirmAction = async (i: number) => {
     const msg = messages[i];
@@ -271,8 +176,7 @@ export default function FloatingAIChat() {
     setMessages((m) => m.map((x, j) => (j === i ? { ...x, actionState: "running" } : x)));
     let res: { ok: boolean; msg: string };
     try {
-      if (msg.action.tipo === "criar_gravacao") res = await executeCriarGravacao(msg.action.dados || {});
-      else res = { ok: false, msg: `Ação não suportada: ${msg.action.tipo}` };
+      res = await executeAction(msg.action, actionCtx);
     } catch (e: any) {
       res = { ok: false, msg: e?.message || "Falha ao executar." };
     }
@@ -359,7 +263,9 @@ export default function FloatingAIChat() {
               <div className="text-center text-xs text-muted-foreground mt-8 space-y-2">
                 <Sparkles className="w-7 h-7 mx-auto opacity-50" />
                 <p>Pergunte sobre a tela — ou peça uma ação.</p>
-                <p className="text-[10px]">Ex: "resuma os posts atrasados" · "agende uma gravação amanhã 20h do cliente Anil Piscinas"</p>
+                <p className="text-[10px] leading-relaxed">
+                  Ex: "agende uma gravação amanhã 20h do cliente Anil Piscinas" · "crie uma tarefa pro João revisar a arte até sexta" · "adicione um lead: Maria, empresa XPTO" · "marque a gravação institucional como gravada"
+                </p>
               </div>
             )}
             {messages.map((m, i) => (
@@ -376,7 +282,7 @@ export default function FloatingAIChat() {
                     action={m.action}
                     state={m.actionState || "pending"}
                     result={m.actionResult}
-                    clients={clients}
+                    ctx={actionCtx}
                     onConfirm={() => confirmAction(i)}
                     onCancel={() => cancelAction(i)}
                   />
@@ -411,48 +317,39 @@ export default function FloatingAIChat() {
   );
 }
 
-// ── Card de confirmação de ação (criar gravação) ────────────────────────────
+// ── Card de confirmação de ação (genérico, dirigido pelo registro) ──────────
 function ActionCard({
-  action, state, result, clients, onConfirm, onCancel,
+  action, state, result, ctx, onConfirm, onCancel,
 }: {
   action: PendingAction;
   state: ActionState;
   result?: string;
-  clients: { id: string; name: string }[];
+  ctx: ActionContext;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const d = action.dados || {};
-  const titleByType: Record<string, string> = { criar_gravacao: "Agendar gravação" };
-  const cardTitle = titleByType[action.tipo] || action.tipo;
-  const matched = action.tipo === "criar_gravacao" ? resolveClient(clients, d.cliente_nome || "") : null;
-  const clientLabel = matched?.name || (d.cliente_nome ? `${d.cliente_nome} (não cadastrado)` : "—");
-  const clientUnresolved = !!d.cliente_nome && !matched;
-
-  const Row = ({ label, value }: { label: string; value?: string }) =>
-    value ? (
-      <div className="flex gap-2">
-        <span className="text-muted-foreground w-16 shrink-0">{label}</span>
-        <span className="text-foreground font-medium break-words">{value}</span>
-      </div>
-    ) : null;
+  const def = getActionDef(action.tipo);
+  const Icon = def?.icon ?? Sparkles;
+  const cardTitle = def?.label ?? action.tipo;
+  const rows = previewAction(action, ctx).filter((r) => r.value && r.value !== "—" || r.warn);
+  const hasWarn = rows.some((r) => r.warn);
 
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-[11px] space-y-1.5">
       <div className="flex items-center gap-1.5 font-semibold text-foreground">
-        <CalendarPlus className="w-3.5 h-3.5 text-primary" /> {cardTitle}
+        <Icon className="w-3.5 h-3.5 text-primary" /> {cardTitle}
       </div>
       <div className="space-y-1">
-        <Row label="Título" value={d.titulo || "Gravação"} />
-        <Row label="Cliente" value={clientLabel} />
-        <Row label="Data" value={fmtDateBR(d.data)} />
-        <Row label="Horário" value={d.inicio ? `${d.inicio}${d.fim ? ` – ${d.fim}` : ""}` : undefined} />
-        <Row label="Local" value={d.local} />
-        <Row label="Resp." value={d.responsavel} />
+        {rows.map((r, idx) => (
+          <div key={idx} className="flex gap-2">
+            <span className="text-muted-foreground w-20 shrink-0">{r.label}</span>
+            <span className={`font-medium break-words ${r.warn ? "text-amber-600" : "text-foreground"}`}>{r.value}</span>
+          </div>
+        ))}
       </div>
-      {clientUnresolved && state === "pending" && (
+      {hasWarn && state === "pending" && (
         <p className="flex items-start gap-1 text-amber-600">
-          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> Cliente não encontrado no cadastro — será salvo só pelo nome.
+          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> Verifique os campos destacados antes de confirmar.
         </p>
       )}
       {state === "done" && (
@@ -463,7 +360,7 @@ function ActionCard({
       )}
       {state === "cancelled" && <p className="text-muted-foreground">Ação cancelada.</p>}
       {state === "running" && (
-        <p className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Agendando…</p>
+        <p className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Executando…</p>
       )}
       {(state === "pending" || state === "error") && (
         <div className="flex gap-1.5 pt-0.5">
@@ -473,7 +370,7 @@ function ActionCard({
           </button>
           <button onClick={onConfirm}
             className="flex-1 h-7 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90">
-            {state === "error" ? "Tentar de novo" : "Confirmar e agendar"}
+            {state === "error" ? "Tentar de novo" : "Confirmar"}
           </button>
         </div>
       )}
