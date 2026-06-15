@@ -14,13 +14,29 @@ import {
 interface ModelPresets { rapido?: string; medio?: string; inteligente?: string }
 interface AiKey { id: string; provider: string; label: string | null; model: string | null; models: string[] | null; model_presets: ModelPresets | null; }
 interface ChatMsg { role: "user" | "assistant"; content: string; action?: PendingAction; actionState?: ActionState; actionResult?: string; }
+type Tier = "rapido" | "medio" | "inteligente";
 
 const PROVIDER_LABEL: Record<string, string> = {
   openai: "OpenAI", anthropic: "Claude", google: "Gemini", groq: "Groq", openrouter: "OpenRouter", custom: "Custom",
 };
 
+// 3 níveis de modelo: Baixo / Médio / Alto (mapeiam para os presets do token)
+const TIERS = [
+  { key: "rapido" as Tier, label: "Baixo", Icon: Zap },
+  { key: "medio" as Tier, label: "Médio", Icon: Gauge },
+  { key: "inteligente" as Tier, label: "Alto", Icon: Brain },
+];
+
+// resolve o modelo concreto a partir do nível escolhido (com fallbacks)
+function resolveTierModel(token: AiKey | undefined, tier: Tier): string {
+  if (!token) return "";
+  const presets = (token.model_presets || {}) as Record<string, string | undefined>;
+  return presets[tier] || token.model || (token.models && token.models[0]) || "";
+}
+
 const POS_KEY = "jg_ai_chat_pos";
 const KEY_KEY = "jg_ai_chat_keyid";
+const TIER_KEY = "jg_ai_chat_tier";
 
 // Garante um token do Supabase Auth válido antes de chamar a edge function.
 // Renova a sessão se estiver expirada/perto de expirar (evita o erro "unauthorized").
@@ -47,7 +63,8 @@ export default function FloatingAIChat() {
 
   const [open, setOpen] = useState(false);
   const [keys, setKeys] = useState<AiKey[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string>(() => localStorage.getItem(KEY_KEY) || "");
+  const [selectedTokenId, setSelectedTokenId] = useState<string>(() => localStorage.getItem(KEY_KEY) || "");
+  const [selectedTier, setSelectedTier] = useState<Tier>(() => (localStorage.getItem(TIER_KEY) as Tier) || "medio");
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -66,37 +83,23 @@ export default function FloatingAIChat() {
       .then(({ data }) => setKeys((data as AiKey[]) || []));
   }, [open]);
 
-  // opções achatadas: cada par (token × modelo) vira uma opção do seletor
-  const options = useMemo(() => {
-    const opts: { value: string; keyId: string; model: string; label: string }[] = [];
-    for (const k of keys) {
-      const prov = PROVIDER_LABEL[k.provider] || k.provider;
-      const presetModels = Object.values(k.model_presets || {}).filter(Boolean) as string[];
-      const base = (k.models && k.models.length) ? k.models : (k.model ? [k.model] : []);
-      const ms = [...new Set([...base, ...presetModels])];
-      if (ms.length === 0) ms.push("");
-      for (const m of ms) {
-        opts.push({ value: `${k.id}::${m}`, keyId: k.id, model: m, label: `${prov}${m ? ` · ${m}` : " · (padrão)"}${k.label ? ` (${k.label})` : ""}` });
-      }
-    }
-    return opts;
+  // dropdown lista só os provedores/IA (um por token)
+  const tokenOptions = useMemo(
+    () => keys.map((k) => ({ id: k.id, label: `${PROVIDER_LABEL[k.provider] || k.provider}${k.label ? ` · ${k.label}` : ""}` })),
+    [keys],
+  );
+
+  // token ativo + modelo resolvido pelo nível (Baixo/Médio/Alto)
+  const activeToken = keys.find((k) => k.id === selectedTokenId);
+  const activeModel = resolveTierModel(activeToken, selectedTier);
+
+  // garante que o token selecionado ainda exista
+  useEffect(() => {
+    setSelectedTokenId((cur) => (cur && keys.some((k) => k.id === cur)) ? cur : (keys[0]?.id || ""));
   }, [keys]);
 
-  // token/modelo ativos e botões de modo (presets) do token selecionado
-  const sepIdx = selectedKey.indexOf("::");
-  const activeKeyId = sepIdx >= 0 ? selectedKey.slice(0, sepIdx) : selectedKey;
-  const activeModel = sepIdx >= 0 ? selectedKey.slice(sepIdx + 2) : "";
-  const activePresets = keys.find((k) => k.id === activeKeyId)?.model_presets || {};
-  const tierButtons = ([["rapido", "Rápido", Zap], ["medio", "Médio", Gauge], ["inteligente", "Inteligente", Brain]] as const)
-    .map(([key, label, Icon]) => ({ key, label, Icon, model: activePresets[key] }))
-    .filter((t): t is { key: string; label: string; Icon: typeof Zap; model: string } => !!t.model);
-
-  // garante que a seleção atual seja válida
-  useEffect(() => {
-    setSelectedKey((cur) => (cur && options.some((o) => o.value === cur)) ? cur : (options[0]?.value || ""));
-  }, [options]);
-
-  useEffect(() => { if (selectedKey) localStorage.setItem(KEY_KEY, selectedKey); }, [selectedKey]);
+  useEffect(() => { if (selectedTokenId) localStorage.setItem(KEY_KEY, selectedTokenId); }, [selectedTokenId]);
+  useEffect(() => { localStorage.setItem(TIER_KEY, selectedTier); }, [selectedTier]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, sending]);
 
   // ── drag do botão ──
@@ -135,7 +138,7 @@ export default function FloatingAIChat() {
   const send = async () => {
     const text = input.trim();
     if (!text) return;
-    if (!selectedKey) { toast.error("Cadastre um token de IA em Integração IA & Webhooks"); return; }
+    if (!selectedTokenId) { toast.error("Cadastre um token de IA em Integração IA & Webhooks"); return; }
     const newMsgs = [...messages, { role: "user" as const, content: text }];
     setMessages(newMsgs);
     setInput("");
@@ -147,11 +150,9 @@ export default function FloatingAIChat() {
         setMessages((m) => [...m, { role: "assistant", content: "⚠️ Sua sessão expirou. Saia e entre novamente para usar o assistente." }]);
         return;
       }
-      const sep = selectedKey.indexOf("::");
-      const keyId = sep >= 0 ? selectedKey.slice(0, sep) : selectedKey;
-      const model = sep >= 0 ? selectedKey.slice(sep + 2) : "";
+      const model = resolveTierModel(keys.find((k) => k.id === selectedTokenId), selectedTier);
       const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: { key_id: keyId, model: model || undefined, messages: newMsgs, system: buildActionsSystemPrompt(), context: buildContext() },
+        body: { key_id: selectedTokenId, model: model || undefined, messages: newMsgs, system: buildActionsSystemPrompt(), context: buildContext() },
       });
       if (error) {
         // extrai o motivo real do corpo da resposta (modelo inexistente, token inválido, etc.)
@@ -248,31 +249,31 @@ export default function FloatingAIChat() {
             <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-muted text-muted-foreground" title="Fechar"><X className="w-4 h-4" /></button>
           </div>
 
-          {/* seletor de modelo */}
+          {/* seletor: dropdown = IA/provedor · botões = nível do modelo (Baixo/Médio/Alto) */}
           <div className="px-3 py-2 border-b space-y-2">
-            {options.length === 0 ? (
+            {tokenOptions.length === 0 ? (
               <p className="text-[11px] text-muted-foreground">Nenhum token de IA cadastrado. Vá em <span className="font-medium">Integração IA &amp; Webhooks</span>.</p>
             ) : (
               <>
-                {tierButtons.length > 0 && (
-                  <div className="flex gap-1">
-                    {tierButtons.map((t) => {
-                      const active = activeModel === t.model;
-                      return (
-                        <button key={t.key} onClick={() => setSelectedKey(`${activeKeyId}::${t.model}`)} title={t.model}
-                          className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}>
-                          <t.Icon className="w-3 h-3" /> {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}
+                <select value={selectedTokenId} onChange={(e) => setSelectedTokenId(e.target.value)}
                   className="w-full text-xs px-2 py-1.5 rounded-md border bg-background text-foreground">
-                  {options.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {tokenOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
                   ))}
                 </select>
+                <div className="flex gap-1">
+                  {TIERS.map((t) => {
+                    const active = selectedTier === t.key;
+                    const model = resolveTierModel(activeToken, t.key);
+                    return (
+                      <button key={t.key} onClick={() => setSelectedTier(t.key)} title={model ? `Modelo: ${model}` : "Modelo não configurado para este nível"}
+                        className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                        <t.Icon className="w-3 h-3" /> {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeModel && <p className="text-[10px] text-muted-foreground truncate">Usando: {activeModel}</p>}
               </>
             )}
           </div>
@@ -326,7 +327,7 @@ export default function FloatingAIChat() {
               rows={1}
               className="flex-1 resize-none max-h-24 text-xs px-3 py-2 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-primary"
             />
-            <button onClick={send} disabled={sending || !input.trim() || !selectedKey}
+            <button onClick={send} disabled={sending || !input.trim() || !selectedTokenId}
               className="h-9 w-9 shrink-0 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-50">
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>

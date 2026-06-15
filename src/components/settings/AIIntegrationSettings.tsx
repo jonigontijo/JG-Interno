@@ -478,10 +478,10 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
                   );
                   return (
                     <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">Botões rápidos no chat (opcional) — modo → modelo</label>
+                      <label className="text-[11px] text-muted-foreground block mb-1">Níveis no chat (Baixo / Médio / Alto) — nível → modelo</label>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Zap className="w-3 h-3" /> Rápido</span>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Zap className="w-3 h-3" /> Baixo</span>
                           {sel(form.rapido, (v) => setForm((f) => ({ ...f, rapido: v })))}
                         </div>
                         <div>
@@ -489,7 +489,7 @@ export default function AIIntegrationSettings({ adminOnly = false }: { adminOnly
                           {sel(form.medio, (v) => setForm((f) => ({ ...f, medio: v })))}
                         </div>
                         <div>
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Brain className="w-3 h-3" /> Inteligente</span>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5"><Brain className="w-3 h-3" /> Alto</span>
                           {sel(form.inteligente, (v) => setForm((f) => ({ ...f, inteligente: v })))}
                         </div>
                       </div>
