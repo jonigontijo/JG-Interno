@@ -22,6 +22,19 @@ const PROVIDER_LABEL: Record<string, string> = {
 const POS_KEY = "jg_ai_chat_pos";
 const KEY_KEY = "jg_ai_chat_keyid";
 
+// Garante um token do Supabase Auth válido antes de chamar a edge function.
+// Renova a sessão se estiver expirada/perto de expirar (evita o erro "unauthorized").
+async function ensureFreshSession(): Promise<boolean> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return false;
+  const expMs = (session.expires_at ?? 0) * 1000;
+  if (expMs && expMs < Date.now() + 60_000) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session) return false;
+  }
+  return true;
+}
+
 export default function FloatingAIChat() {
   const location = useLocation();
   const ctxLabel = useAIContextStore((s) => s.label);
@@ -128,6 +141,12 @@ export default function FloatingAIChat() {
     setInput("");
     setSending(true);
     try {
+      // sessão válida é obrigatória: a edge function exige o JWT do usuário
+      const hasSession = await ensureFreshSession();
+      if (!hasSession) {
+        setMessages((m) => [...m, { role: "assistant", content: "⚠️ Sua sessão expirou. Saia e entre novamente para usar o assistente." }]);
+        return;
+      }
       const sep = selectedKey.indexOf("::");
       const keyId = sep >= 0 ? selectedKey.slice(0, sep) : selectedKey;
       const model = sep >= 0 ? selectedKey.slice(sep + 2) : "";
@@ -144,6 +163,7 @@ export default function FloatingAIChat() {
             detail = b?.detail || b?.error || detail;
           }
         } catch { /* ignore */ }
+        if (detail === "unauthorized") detail = "Sua sessão expirou. Saia e entre novamente para usar o assistente.";
         setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${detail}` }]);
         return;
       }
