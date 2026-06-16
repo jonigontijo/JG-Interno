@@ -3,6 +3,7 @@ import { mockClients, mockTasks, mockLeads, mockTeam } from "@/data/mockData";
 import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
 import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQuoteRequests, loadInternalRequests, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB, db } from "@/lib/supabaseData";
 import { toast } from "sonner";
+import { notifyApp } from "@/lib/notifyApp";
 import { useAuthStore } from "./useAuthStore";
 
 export type {
@@ -1126,6 +1127,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }).then(({ error }: any) => {
         if (error) console.error('Error saving client DNA:', error);
       });
+      // Avisa o app do cliente (só sincroniza dado da tela "marca", sem push — ver doc).
+      const client = get().clients.find((c) => c.id === clientId);
+      if (client?.jgAppClienteId) {
+        notifyApp("marca.atualizada", client.jgAppClienteId, {
+          links: dna.links, notes: dna.notes, important_dates: dna.importantDates,
+        });
+      }
     }
   },
 

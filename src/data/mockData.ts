@@ -53,6 +53,9 @@ export interface Client {
   // New: team & recurring services
   assignedTeam?: ClientTeamAssignment[];
   recurringServices?: RecurringService[];
+  // JG App integration: login email + vínculo com a conta do cliente no JG App.
+  email?: string;
+  jgAppClienteId?: string;
 }
 
 export interface Task {

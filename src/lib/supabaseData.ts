@@ -79,6 +79,8 @@ export function mapClientFromDB(row: any, assignments: any[] = [], services: any
       id: s.id, name: s.name, assigneeId: s.assignee_id, assigneeName: s.assignee_name,
       frequency: s.frequency, quantityPerCycle: s.quantity_per_cycle, description: s.description, active: s.active,
     })),
+    email: row.email ?? undefined,
+    jgAppClienteId: row.jg_app_cliente_id ?? undefined,
   };
 }
 
@@ -97,6 +99,10 @@ export function mapClientToDB(c: Client): any {
     is_barter: c.isBarter, barter_description: c.barterDetails?.description,
     barter_agreed_value: c.barterDetails?.agreedValue, barter_start_date: c.barterDetails?.startDate,
     barter_end_date: c.barterDetails?.endDate, barter_notes: c.barterDetails?.notes,
+    // Só envia quando definido: ativar-app grava jg_app_cliente_id via service role;
+    // mandar undefined aqui apagaria o vínculo num update vindo do front.
+    ...(c.email !== undefined ? { email: c.email } : {}),
+    ...(c.jgAppClienteId !== undefined ? { jg_app_cliente_id: c.jgAppClienteId } : {}),
   };
 }
 

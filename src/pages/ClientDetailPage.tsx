@@ -4,6 +4,7 @@ import { useAppStore, QuoteRequest, type ClientDnaLink, type ClientDnaCredential
 import { useAuthStore } from "@/store/useAuthStore";
 import { formatCurrency, RecurringService } from "@/data/mockData";
 import PageHeader from "@/components/PageHeader";
+import { AtivarAppButton } from "@/components/AtivarAppButton";
 import StatusBadge from "@/components/StatusBadge";
 import Modal from "@/components/Modal";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,7 +83,7 @@ export default function ClientDetailPage() {
     assignTeamMemberToClient, removeTeamMemberFromClient,
     addRecurringService, removeRecurringService, updateRecurringService,
     generateRecurringTasks, startTask, completeTask, addTask, deleteTask, logAudit,
-    getClientDna, updateClientDna,
+    getClientDna, updateClientDna, reloadClients,
   } = useAppStore();
   const { users } = useAuthStore();
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -483,6 +484,11 @@ export default function ClientDetailPage() {
 
       <PageHeader title={client.company} description={`${client.name} · ${client.status} · ${client.substatus}`}>
         <div className="flex items-center gap-2">
+          <AtivarAppButton
+            client={{ id: client.id, name: client.company, email: client.email, jg_app_cliente_id: client.jgAppClienteId }}
+            isAdmin={currentUser?.isAdmin}
+            onAtivado={reloadClients}
+          />
           <button
             onClick={() => {
               if (window.confirm(`Tem certeza que deseja excluir "${client.company}"?`)) {

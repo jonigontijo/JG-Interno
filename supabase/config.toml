@@ -14,6 +14,15 @@ verify_jwt = false
 [functions.sm-send-approval]
 verify_jwt = true
 
+# Emite evento DIRETO ao app do cliente (JG App), sem n8n — exige login (JWT).
+# Segredo do JG App fica no servidor (env JG_APP_EVENTS_SECRET).
+[functions.notify-app]
+verify_jwt = true
+
+# "Ativar acesso ao app" — provisiona conta do cliente no JG App (exige login).
+[functions.ativar-app]
+verify_jwt = true
+
 # Callback OAuth do Google Sheets — chamado pelo Google sem JWT.
 [functions.google-sheets-oauth-callback]
 verify_jwt = false
