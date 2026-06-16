@@ -57,11 +57,11 @@ const navSections: NavSection[] = [
       { label: "Onboarding", icon: Rocket, path: "/onboarding", moduleKey: "onboarding" },
       { label: "Tráfego Pago", icon: Megaphone, path: "/traffic", moduleKey: "traffic" },
       { label: "Social Media", icon: Briefcase, path: "/social", moduleKey: "social" },
-      { label: "Painel Social", icon: BarChart3, path: "/social-dashboard", moduleKey: "social" },
+      { label: "Painel Social", icon: BarChart3, path: "/social-dashboard", moduleKey: "social-dashboard" },
       { label: "Produção", icon: Palette, path: "/production", moduleKey: "production" },
       { label: "Tech / Sites", icon: Monitor, path: "/tech", moduleKey: "tech" },
       { label: "Inside Sales", icon: Phone, path: "/inside-sales", moduleKey: "inside-sales" },
-      { label: "Tráfego Pago (Painel)", icon: Megaphone, path: "http://srv1653424.hstgr.cloud:3001/", moduleKey: "traffic", external: true },
+      { label: "Tráfego Pago (Painel)", icon: Megaphone, path: "http://srv1653424.hstgr.cloud:3001/", moduleKey: "traffic-panel", external: true },
     ],
   },
   {
@@ -79,9 +79,9 @@ const navSections: NavSection[] = [
     items: [
       { label: "Usuários", icon: Shield, path: "/admin", moduleKey: "admin" },
       { label: "Auditoria", icon: ClipboardList, path: "/audit", moduleKey: "audit" },
-      { label: "Integração IA & Webhooks", icon: Bot, path: "/ai-integration", moduleKey: "dashboard" },
+      { label: "Integração IA & Webhooks", icon: Bot, path: "/ai-integration", moduleKey: "ai-integration" },
       { label: "Configurações", icon: Settings, path: "/settings", moduleKey: "settings" },
-      { label: "Central de Ajuda", icon: HelpCircle, path: "/help", moduleKey: "dashboard" },
+      { label: "Central de Ajuda", icon: HelpCircle, path: "/help", moduleKey: "help" },
     ],
   },
 ];

@@ -51,7 +51,7 @@ const moduleGroups = [
   },
   {
     label: "Operação",
-    modules: ["onboarding", "traffic", "social", "production", "tech", "inside-sales"],
+    modules: ["onboarding", "traffic", "traffic-panel", "social", "social-dashboard", "production", "tech", "inside-sales"],
   },
   {
     label: "Gestão",
@@ -59,7 +59,7 @@ const moduleGroups = [
   },
   {
     label: "Sistema",
-    modules: ["admin", "audit", "settings"],
+    modules: ["admin", "audit", "ai-integration", "settings", "help"],
   },
 ];
 

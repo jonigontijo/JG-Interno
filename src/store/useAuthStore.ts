@@ -30,7 +30,9 @@ export const ALL_MODULES = [
   { key: "financial", label: "Financeiro", path: "/financial" },
   { key: "onboarding", label: "Onboarding", path: "/onboarding" },
   { key: "traffic", label: "Tráfego Pago", path: "/traffic" },
+  { key: "traffic-panel", label: "Tráfego Pago (Painel)", path: "http://srv1653424.hstgr.cloud:3001/" },
   { key: "social", label: "Social Media", path: "/social" },
+  { key: "social-dashboard", label: "Painel Social", path: "/social-dashboard" },
   { key: "production", label: "Produção", path: "/production" },
   { key: "tech", label: "Tech / Sites", path: "/tech" },
   { key: "inside-sales", label: "Inside Sales", path: "/inside-sales" },
@@ -41,10 +43,12 @@ export const ALL_MODULES = [
   { key: "ai-alerts", label: "IA Campanhas", path: "/ai-alerts" },
   { key: "admin", label: "Usuários", path: "/admin" },
   { key: "audit", label: "Auditoria", path: "/audit" },
+  { key: "ai-integration", label: "Integração IA & Webhooks", path: "/ai-integration" },
   { key: "settings", label: "Configurações", path: "/settings" },
+  { key: "help", label: "Central de Ajuda", path: "/help" },
 ] as const;
 
-const DEFAULT_MODULES = ["dashboard", "clients", "tasks", "requests", "ad-hoc"];
+const DEFAULT_MODULES = ["dashboard", "clients", "tasks", "requests", "ad-hoc", "help"];
 
 function db(table: string) {
   return (supabase as any).from(table);

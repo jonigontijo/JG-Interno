@@ -44,7 +44,7 @@ import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
-const DEFAULT_MODULES = ["dashboard", "clients", "tasks", "requests", "ad-hoc"];
+const DEFAULT_MODULES = ["dashboard", "clients", "tasks", "requests", "ad-hoc", "help"];
 
 function ProtectedRoute({ children, moduleKey }: { children: React.ReactNode; moduleKey: string }) {
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -177,7 +177,7 @@ function AuthenticatedApp() {
         <Route path="/onboarding" element={<ProtectedRoute moduleKey="onboarding"><OnboardingPage /></ProtectedRoute>} />
         <Route path="/traffic" element={<ProtectedRoute moduleKey="traffic"><TrafficPage /></ProtectedRoute>} />
         <Route path="/social" element={<ProtectedRoute moduleKey="social"><SocialMediaPage /></ProtectedRoute>} />
-        <Route path="/social-dashboard" element={<ProtectedRoute moduleKey="social"><SocialDashboardPage /></ProtectedRoute>} />
+        <Route path="/social-dashboard" element={<ProtectedRoute moduleKey="social-dashboard"><SocialDashboardPage /></ProtectedRoute>} />
         <Route path="/production" element={<ProtectedRoute moduleKey="production"><ProductionPage /></ProtectedRoute>} />
         <Route path="/tech" element={<ProtectedRoute moduleKey="tech"><TechPage /></ProtectedRoute>} />
         <Route path="/inside-sales" element={<ProtectedRoute moduleKey="inside-sales"><InsideSalesPage /></ProtectedRoute>} />
@@ -194,8 +194,8 @@ function AuthenticatedApp() {
         <Route path="/admin" element={<ProtectedRoute moduleKey="admin"><AdminPage /></ProtectedRoute>} />
         <Route path="/audit" element={<ProtectedRoute moduleKey="audit"><AuditPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><SettingsPage /></ProtectedRoute>} />
-        <Route path="/ai-integration" element={<ProtectedRoute moduleKey="dashboard"><AIIntegrationPage /></ProtectedRoute>} />
-        <Route path="/help" element={<HelpCenterPage />} />
+        <Route path="/ai-integration" element={<ProtectedRoute moduleKey="ai-integration"><AIIntegrationPage /></ProtectedRoute>} />
+        <Route path="/help" element={<ProtectedRoute moduleKey="help"><HelpCenterPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <FloatingAIChat />
