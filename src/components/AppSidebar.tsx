@@ -22,6 +22,7 @@ interface NavItem {
   path: string;
   moduleKey: string;
   badgeKey?: string;
+  external?: boolean;
 }
 
 interface NavSection {
@@ -60,6 +61,7 @@ const navSections: NavSection[] = [
       { label: "Produção", icon: Palette, path: "/production", moduleKey: "production" },
       { label: "Tech / Sites", icon: Monitor, path: "/tech", moduleKey: "tech" },
       { label: "Inside Sales", icon: Phone, path: "/inside-sales", moduleKey: "inside-sales" },
+      { label: "Tráfego Pago (Painel)", icon: Megaphone, path: "http://srv1653424.hstgr.cloud:3001/", moduleKey: "traffic", external: true },
     ],
   },
   {
@@ -188,13 +190,8 @@ export default function AppSidebar() {
                   {visibleItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     const badge = getBadgeCount(item.badgeKey);
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        onClick={() => setMobileOpen(false)}
-                        className={`nav-item ${isActive ? "nav-item-active" : ""} relative`}
-                      >
+                    const inner = (
+                      <>
                         <item.icon className="w-4 h-4 flex-shrink-0" />
                         <span className="flex-1">{item.label}</span>
                         {badge > 0 && (
@@ -202,6 +199,30 @@ export default function AppSidebar() {
                             {badge}
                           </span>
                         )}
+                      </>
+                    );
+                    if (item.external) {
+                      return (
+                        <a
+                          key={item.path}
+                          href={item.path}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setMobileOpen(false)}
+                          className="nav-item relative"
+                        >
+                          {inner}
+                        </a>
+                      );
+                    }
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileOpen(false)}
+                        className={`nav-item ${isActive ? "nav-item-active" : ""} relative`}
+                      >
+                        {inner}
                       </Link>
                     );
                   })}
