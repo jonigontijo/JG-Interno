@@ -970,7 +970,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     // Direct DB writes
     db('internal_requests').upsert(mapRequestToDB(fullReq)).then(({ error }: any) => {
-      if (error) console.error('Direct addRequest DB write failed:', error);
+      if (error) {
+        console.error('Direct addRequest DB write failed:', error);
+        toast.error(`Falha ao salvar requisição: ${error.message ?? error}`);
+      }
     });
     db('tasks').upsert(mapTaskToDB(task)).then(({ error }: any) => {
       if (error) console.error('Direct addRequest task DB write failed:', error);
