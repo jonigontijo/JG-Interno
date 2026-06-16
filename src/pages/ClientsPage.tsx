@@ -4,10 +4,11 @@ import Modal from "@/components/Modal";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { formatCurrency } from "@/data/mockData";
-import { Search, Filter, Plus, AlertCircle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Users, Zap, Pencil, Power, PowerOff } from "lucide-react";
+import { Search, Filter, Plus, AlertCircle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Users, Zap, Pencil, Power, PowerOff, Download } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import type { Client } from "@/data/mockData";
 
 const getDemandStatus = (client: Client, tasks: any[]) => {
@@ -174,9 +175,42 @@ export default function ClientsPage() {
   const isAdminOrGerente = currentUser?.isAdmin || currentUser?.roles?.some(r => r.includes("Gerente Operacional"));
   const clientsWithoutTeam = clients.filter(c => c.status === "Operação" && (!c.assignedTeam || c.assignedTeam.filter(a => a.role !== "Gerente Operacional").length === 0));
 
+  // Exporta clientes para Excel: uma aba "Ativos" e outra "Inativos" (igual aos tabs do sistema)
+  const exportToExcel = () => {
+    const riskLabel = (r: string) => r === "low" ? "Baixo" : r === "medium" ? "Médio" : r === "high" ? "Alto" : r === "critical" ? "Crítico" : r;
+    const toRow = (c: Client) => ({
+      "Empresa": c.company,
+      "Contato": c.name || "",
+      "Serviços": c.services.join(", "),
+      "Dia Vencimento": c.paymentDueDay ?? "",
+      ...(hasFinancialAccess ? { "Mensalidade (R$)": c.monthlyValue ?? 0 } : {}),
+      "Posts/semana": c.socialMediaPosts ?? 0,
+      "Risco": riskLabel(c.riskLevel),
+      "Tarefas Pendentes": c.pendingTasks ?? 0,
+      "Tarefas Atrasadas": c.overdueTasks ?? 0,
+    });
+    const byCompany = (list: Client[]) => [...list].sort((a, b) => a.company.localeCompare(b.company)).map(toRow);
+    const ativos = byCompany(activeClients);
+    const inativos = byCompany(inactiveClients);
+
+    const cols = [{ wch: 40 }, { wch: 24 }, { wch: 34 }, { wch: 14 }, ...(hasFinancialAccess ? [{ wch: 16 }] : []), { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    const wsA = XLSX.utils.json_to_sheet(ativos);
+    const wsI = XLSX.utils.json_to_sheet(inativos);
+    wsA["!cols"] = cols;
+    wsI["!cols"] = cols;
+    XLSX.utils.book_append_sheet(wb, wsA, "Ativos");
+    XLSX.utils.book_append_sheet(wb, wsI, "Inativos");
+    XLSX.writeFile(wb, `clientes-jg-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success(`Exportado: ${ativos.length} ativos e ${inativos.length} inativos.`);
+  };
+
   return (
     <div>
       <PageHeader title="Clientes" description={`${activeClients.length} ativos · ${inactiveClients.length} inativos`}>
+        <button onClick={exportToExcel} title="Exportar Ativos e Inativos para Excel" className="flex items-center gap-2 px-4 py-2 rounded-md border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+          <Download className="w-4 h-4" /> Exportar Excel
+        </button>
         <button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
           <Plus className="w-4 h-4" /> Novo Cliente
         </button>
