@@ -282,7 +282,7 @@ export default function RequestsPage() {
                     {/* If client selected, show client team first */}
                     {clientTeam.length > 0 && (
                       <>
-                        {clientTeam.map((member) => {
+                        {clientTeam.filter((m) => m.memberName).map((member) => {
                           const pendingCount = tasks.filter((t) => t.assignee === member.memberName && t.status !== "done").length;
                           return (
                             <SelectItem key={`team-${member.memberId}`} value={member.memberName}>
@@ -293,7 +293,7 @@ export default function RequestsPage() {
                       </>
                     )}
                     {/* Then show all other users */}
-                    {users.filter((u) => u.active && u.id !== currentUser?.id && !clientTeam.some(ct => ct.memberName === u.name)).map((user) => {
+                    {users.filter((u) => u.active && u.name && u.id !== currentUser?.id && !clientTeam.some(ct => ct.memberName === u.name)).map((user) => {
                       const pendingCount = tasks.filter((t) => t.assignee === user.name && t.status !== "done").length;
                       return (
                         <SelectItem key={user.id} value={user.name}>
@@ -565,7 +565,7 @@ export default function RequestsPage() {
               <Select value={redistributeTo} onValueChange={setRedistributeTo}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {users.filter((u) => u.active).map((u) => (
+                  {users.filter((u) => u.active && u.name).map((u) => (
                     <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -622,7 +622,7 @@ export default function RequestsPage() {
               <Select value={recordingForm.videomaker} onValueChange={(v) => setRecordingForm(f => ({ ...f, videomaker: v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {team.filter(m => m.roles.includes("Social Media - Videomaker")).map(m => (
+                  {team.filter(m => m.name && m.roles.includes("Social Media - Videomaker")).map(m => (
                     <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -861,7 +861,7 @@ export default function RequestsPage() {
                 <Select value={editForm.assignedTo} onValueChange={(v) => setEditForm(f => ({ ...f, assignedTo: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {users.filter(u => u.active).map(u => (
+                    {users.filter(u => u.active && u.name).map(u => (
                       <SelectItem key={u.id} value={u.name}>{u.name}{u.role ? ` (${u.role})` : ""}</SelectItem>
                     ))}
                   </SelectContent>
