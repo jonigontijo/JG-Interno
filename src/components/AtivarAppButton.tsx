@@ -40,7 +40,18 @@ export function AtivarAppButton({ client, isAdmin, onAtivado }: Props) {
       const { data, error } = await supabase.functions.invoke("ativar-app", {
         body: { client_id: client.id, email },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        // supabase-js só dá "non-2xx status code"; o motivo real vem no corpo.
+        let detail = error.message;
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const b = await ctx.json();
+            detail = `${ctx.status} ${b?.erro ?? b?.message ?? JSON.stringify(b)}`;
+          } catch { detail = `${ctx.status ?? ""} ${error.message}`.trim(); }
+        }
+        throw new Error(detail);
+      }
       if (!data?.ok) throw new Error(data?.erro ?? "falha ao ativar");
 
       if (data.criou_login && data.senha_temporaria) {
