@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppStore } from "@/store/useAppStore";
+import { notifyApp } from "@/lib/notifyApp";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useAIPageContext } from "@/store/useAIContextStore";
 import Modal from "@/components/Modal";
@@ -258,6 +259,19 @@ export default function AprovacoesPanel() {
 
       toast.success("Aprovação criada!");
       await sendApproval((inserted as Approval).id);
+      // Transição: além do webhook/n8n acima, emite DIRETO pro JG App (sem n8n).
+      // data.id = sm_approvals.id é exigido pelo notify-app p/ o callback de resposta.
+      if (client?.jgAppClienteId) {
+        const a = inserted as Approval;
+        notifyApp("aprovacao.criada", client.jgAppClienteId, {
+          id: a.id,
+          titulo: a.title ?? form.title.trim(),
+          tipo: form.piece_type,
+          plataforma: form.plataforma || null,
+          piece_url: form.pieceUrl.trim(),
+          prazo_resposta: toUtcIso(form.prazo_resposta),
+        }, { titulo: "Nova peça para aprovar", mensagem: a.title ?? "Conteúdo aguardando sua aprovação" });
+      }
 
       setForm(emptyForm);
       setShowForm(false);
