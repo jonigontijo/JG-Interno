@@ -185,15 +185,23 @@ export default function AprovacoesPanel() {
   const displayTitle = (a: Approval) =>
     a.title || a.description || `${a.plataforma || ""} · ${pieceLabel(a.piece_type)}`.trim();
 
-  // ── Dispara/Reenvia via Edge Function (token de callback fica no servidor) ──
-  const sendApproval = async (approvalId: string, opts: { silentEmpty?: boolean } = {}) => {
-    const { data, error } = await supabase.functions.invoke("sm-send-approval", { body: { approval_id: approvalId } });
-    if (error) { toast.error(`Webhook não enviado: ${error.message}`); return; }
-    const r = data as { ok?: boolean; delivered?: number; total?: number; message?: string };
-    if (r?.ok && (r.delivered ?? 0) > 0) toast.success("Enviado ao cliente!");
-    else if (r?.ok && (r.total ?? 0) === 0) { if (!opts.silentEmpty) toast.warning("Nenhum webhook inscrito em 'approval.created'. Cadastre em Integração IA & Webhooks."); }
-    else if (r?.ok) toast.warning("Disparado, mas sem entrega 2xx (verifique a URL do webhook).");
-    else toast.warning("Falha ao disparar o webhook.");
+  // ── Emite/Reenvia DIRETO pro JG App (sem n8n). Callback de resposta é
+  //    injetado server-side pelo notify-app. data.id = sm_approvals.id. ──
+  const emitAprovacao = async (a: Approval) => {
+    const client = clients.find((c) => c.id === a.client_id);
+    if (!client?.jgAppClienteId) {
+      toast.warning("Cliente sem acesso ao app. Ative em Detalhe do cliente para notificar.");
+      return;
+    }
+    const ok = await notifyApp("aprovacao.criada", client.jgAppClienteId, {
+      id: a.id,
+      titulo: a.title ?? "",
+      tipo: a.piece_type,
+      plataforma: a.plataforma,
+      piece_url: a.piece_url,
+      prazo_resposta: a.prazo_resposta,
+    }, { titulo: "Nova peça para aprovar", mensagem: a.title ?? "Conteúdo aguardando sua aprovação" });
+    toast[ok ? "success" : "error"](ok ? "Enviado ao cliente!" : "Falha ao enviar ao app");
   };
 
   // ── Upload de arquivo para o Storage (bucket público sm-aprovacoes) ──
@@ -258,20 +266,7 @@ export default function AprovacoesPanel() {
       if (error) throw error;
 
       toast.success("Aprovação criada!");
-      await sendApproval((inserted as Approval).id);
-      // Transição: além do webhook/n8n acima, emite DIRETO pro JG App (sem n8n).
-      // data.id = sm_approvals.id é exigido pelo notify-app p/ o callback de resposta.
-      if (client?.jgAppClienteId) {
-        const a = inserted as Approval;
-        notifyApp("aprovacao.criada", client.jgAppClienteId, {
-          id: a.id,
-          titulo: a.title ?? form.title.trim(),
-          tipo: form.piece_type,
-          plataforma: form.plataforma || null,
-          piece_url: form.pieceUrl.trim(),
-          prazo_resposta: toUtcIso(form.prazo_resposta),
-        }, { titulo: "Nova peça para aprovar", mensagem: a.title ?? "Conteúdo aguardando sua aprovação" });
-      }
+      await emitAprovacao(inserted as Approval);
 
       setForm(emptyForm);
       setShowForm(false);
@@ -286,7 +281,7 @@ export default function AprovacoesPanel() {
   // ── Reenviar ──
   const handleResend = async (a: Approval) => {
     setBusy(true);
-    try { await sendApproval(a.id); await load(); }
+    try { await emitAprovacao(a); await load(); }
     finally { setBusy(false); }
   };
 
