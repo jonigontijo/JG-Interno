@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { notifyApp } from "@/lib/notifyApp";
 import {
   AlertTriangle, Users, BarChart3, HandHelping, Eye, Upload,
   Link2, Bell, X, Image, FileText, Trash2, Copy, ExternalLink, Loader2, CheckCircle, Clock
@@ -70,6 +71,15 @@ export default function SocialDashboardPage() {
         });
       }
       toast.success("Post(s) enviado(s) com sucesso!");
+      // Avisa o app do cliente: novo conteúdo pronto (producao.criada).
+      if (client.jgAppClienteId) {
+        notifyApp("producao.criada", client.jgAppClienteId, {
+          id: `posts-${Date.now()}`,
+          titulo: `${files.length} post(s) prontos`,
+          tipo: "post",
+          status: "ready",
+        }, { titulo: "Novo conteúdo pronto", mensagem: `${files.length} post(s) aguardando você` });
+      }
       loadClientPosts();
     } catch (e: any) {
       toast.error("Erro no upload: " + e.message);

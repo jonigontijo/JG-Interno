@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useAppStore } from "@/store/useAppStore";
 import { isSocialTeamMember } from "@/lib/socialTeam";
+import { notifyApp } from "@/lib/notifyApp";
 
 // ============================================================================
 // Types & constants (portados do dingy, identidade name-based em vez de UUID)
@@ -510,6 +511,7 @@ function RecordingEditModal({
   onClose: () => void;
   onSaved: (rec: Recording) => void;
 }) {
+  const clients = useAppStore((s) => s.clients);
   const [form, setForm] = useState<Partial<Recording>>({
     title: "",
     description: "",
@@ -574,7 +576,17 @@ function RecordingEditModal({
       }
       toast.success("Gravação criada");
       syncToGoogle("upsert", (data as Recording).id);
-      onSaved(data as Recording);
+      // Avisa o app do cliente: gravação agendada (agenda.evento).
+      const rec = data as Recording;
+      const jgId = clients.find((c) => c.id === rec.client_id)?.jgAppClienteId;
+      if (jgId) {
+        notifyApp("agenda.evento", jgId, {
+          funcionario_id: rec.responsible_name || "",
+          data_hora: `${rec.date}T${rec.start_time || "00:00"}`,
+          descricao: rec.title,
+        }, { titulo: "Gravação agendada", mensagem: `${rec.title} — ${rec.date}` });
+      }
+      onSaved(rec);
     }
   };
 
