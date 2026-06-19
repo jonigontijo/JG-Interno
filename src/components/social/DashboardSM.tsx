@@ -44,10 +44,10 @@ function classify(total: number | null, tier: "5x" | "3x" | "?"): Severity {
 }
 
 const SEV = {
-  atrasado: { label: "Atrasado", color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/30", dot: "bg-destructive", Icon: AlertTriangle },
-  atencao: { label: "Atenção", color: "text-warning", bg: "bg-warning/10", border: "border-warning/30", dot: "bg-warning", Icon: AlertCircle },
-  ok: { label: "Ok", color: "text-success", bg: "bg-success/10", border: "border-success/30", dot: "bg-success", Icon: CheckCircle2 },
-  sem_dado: { label: "Sem dado", color: "text-muted-foreground", bg: "bg-muted/30", border: "border-border", dot: "bg-muted-foreground", Icon: HelpCircle },
+  atrasado: { label: "Atrasado", color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/30", ring: "ring-destructive", dot: "bg-destructive", Icon: AlertTriangle },
+  atencao: { label: "Atenção", color: "text-warning", bg: "bg-warning/10", border: "border-warning/30", ring: "ring-warning", dot: "bg-warning", Icon: AlertCircle },
+  ok: { label: "Ok", color: "text-success", bg: "bg-success/10", border: "border-success/30", ring: "ring-success", dot: "bg-success", Icon: CheckCircle2 },
+  sem_dado: { label: "Sem dado", color: "text-muted-foreground", bg: "bg-muted/30", border: "border-border", ring: "ring-muted-foreground", dot: "bg-muted-foreground", Icon: HelpCircle },
 } as const;
 
 export default function DashboardSM() {
@@ -57,6 +57,7 @@ export default function DashboardSM() {
   const [rows, setRows] = useState<SheetDataRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<Severity | "all">("all"); // filtro pelos balões
 
   // só abas de mês (têm "/" no título, ex.: "JUNHO/26")
   const monthTabs = useMemo(() => tabs.filter((t) => t.title.includes("/")), [tabs]);
@@ -178,24 +179,34 @@ export default function DashboardSM() {
         </span>
       </div>
 
-      {/* Cards de resumo */}
+      {/* Cards de resumo — clicáveis, funcionam como filtro */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard sev="atrasado" count={atrasados.length} caption="Atrasados / críticos" />
-        <SummaryCard sev="atencao" count={atencao.length} caption="Em atenção" />
-        <SummaryCard sev="ok" count={oks.length} caption="Em dia" />
-        <div className="rounded-lg border bg-card p-3">
+        <SummaryCard sev="atrasado" count={atrasados.length} caption="Atrasados / críticos" active={filter === "atrasado"} onClick={() => setFilter((f) => f === "atrasado" ? "all" : "atrasado")} />
+        <SummaryCard sev="atencao" count={atencao.length} caption="Em atenção" active={filter === "atencao"} onClick={() => setFilter((f) => f === "atencao" ? "all" : "atencao")} />
+        <SummaryCard sev="ok" count={oks.length} caption="Em dia" active={filter === "ok"} onClick={() => setFilter((f) => f === "ok" ? "all" : "ok")} />
+        <button onClick={() => setFilter("all")}
+          className={`text-left rounded-lg border bg-card p-3 transition-all hover:brightness-110 ${filter === "all" ? "ring-2 ring-offset-1 ring-offset-background ring-foreground/40" : ""}`}>
           <div className="flex items-center gap-1.5 text-muted-foreground"><TrendingDown className="w-4 h-4" /><span className="text-2xl font-bold text-foreground">{analysis.length}</span></div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Clientes na planilha</p>
-        </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{filter === "all" ? "Todos os clientes" : "Ver todos"}</p>
+        </button>
       </div>
 
-      {/* Atrasados (crítico) */}
-      <Section title="Atrasados / críticos" sev="atrasado" items={atrasados} empty="Nenhum cliente atrasado 🎉" />
-      {/* Atenção */}
-      <Section title="Em atenção" sev="atencao" items={atencao} empty="Nenhum cliente em atenção." />
+      {/* Seções conforme o filtro selecionado nos balões */}
+      {(filter === "all" || filter === "atrasado") && (
+        <Section title="Atrasados / críticos" sev="atrasado" items={atrasados} empty="Nenhum cliente atrasado 🎉" />
+      )}
+      {(filter === "all" || filter === "atencao") && (
+        <Section title="Em atenção" sev="atencao" items={atencao} empty="Nenhum cliente em atenção." />
+      )}
+      {filter === "ok" && (
+        <Section title="Em dia" sev="ok" items={oks} empty="Nenhum cliente em dia." />
+      )}
+      {semDado.length > 0 && (filter === "all" || filter === "sem_dado") && (
+        <Section title="Sem dado de posts" sev="sem_dado" items={semDado} empty="" />
+      )}
 
       {/* Frequência não identificada (aviso de matching) */}
-      {semDado.length === 0 && analysis.some((a) => a.tier === "?") && (
+      {analysis.some((a) => a.tier === "?") && (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
           <HelpCircle className="w-3.5 h-3.5" /> Alguns clientes não foram encontrados no cadastro (frequência "?"). Para esses, assumimos a regra de 3x/semana (mais conservadora).
         </p>
@@ -247,16 +258,17 @@ export default function DashboardSM() {
   );
 }
 
-function SummaryCard({ sev, count, caption }: { sev: Severity; count: number; caption: string }) {
+function SummaryCard({ sev, count, caption, active, onClick }: { sev: Severity; count: number; caption: string; active: boolean; onClick: () => void }) {
   const s = SEV[sev];
   return (
-    <div className={`rounded-lg border ${s.border} ${s.bg} p-3`}>
+    <button onClick={onClick}
+      className={`text-left rounded-lg border ${s.border} ${s.bg} p-3 transition-all hover:brightness-110 ${active ? `ring-2 ring-offset-1 ring-offset-background ${s.ring}` : ""}`}>
       <div className="flex items-center gap-1.5">
         <s.Icon className={`w-4 h-4 ${s.color}`} />
         <span className={`text-2xl font-bold ${s.color}`}>{count}</span>
       </div>
-      <p className="text-[11px] text-muted-foreground mt-0.5">{caption}</p>
-    </div>
+      <p className="text-[11px] text-muted-foreground mt-0.5">{caption}{active ? " · filtrando" : ""}</p>
+    </button>
   );
 }
 
