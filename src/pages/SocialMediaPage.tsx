@@ -18,6 +18,7 @@ import DingyTabContainer from "@/components/social/DingyTabContainer";
 import GoogleCalendarIntegration from "@/components/settings/GoogleCalendarIntegration";
 import GoogleSheetsIntegration from "@/components/settings/GoogleSheetsIntegration";
 import PostagensPlanilha from "@/components/social/PostagensPlanilha";
+import DashboardSM from "@/components/social/DashboardSM";
 import AprovacoesPanel from "@/components/social/AprovacoesPanel";
 import ClientesSMPanel from "@/components/social/ClientesSMPanel";
 import GoogleIntegrationSetupModal, { type IntegrationFormData } from "@/components/settings/GoogleIntegrationSetupModal";
@@ -132,7 +133,7 @@ export default function SocialMediaPage() {
   const socialClients = clients
     .filter(c => c.services.some(s => s.toLowerCase().includes("social media")))
     .sort((a, b) => a.company.localeCompare(b.company));
-  const [activeTab, setActiveTab] = useState<"calendar" | "planilha" | "aprovacoes" | "clientes_sm" | "dingy" | "briefings" | "integrations">("calendar");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "calendar" | "planilha" | "aprovacoes" | "clientes_sm" | "dingy" | "briefings" | "integrations">("dashboard");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpRequest, setHelpRequest] = useState({ clientId: "", message: "" });
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -437,6 +438,7 @@ export default function SocialMediaPage() {
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   const tabs = [
+    { key: "dashboard", label: "Dashboard", icon: BarChart3 },
     { key: "calendar", label: "Agenda", icon: CalendarIcon },
     { key: "planilha", label: "Planilha", icon: FileSpreadsheet },
     { key: "aprovacoes", label: "Aprovações", icon: CheckCircle },
@@ -470,6 +472,11 @@ export default function SocialMediaPage() {
           </button>
         ))}
       </div>
+
+      {/* Dashboard Tab - clientes críticos a partir da planilha (posts faltando no mês) */}
+      {activeTab === "dashboard" && (
+        <DashboardSM />
+      )}
 
       {/* Planilha Tab - espelho editável multi-aba da planilha de postagens (Google Sheets) */}
       {activeTab === "planilha" && (

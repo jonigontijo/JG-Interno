@@ -129,6 +129,12 @@ export function mapTaskFromDB(row: any): Task {
 }
 
 export function mapTaskToDB(t: Task): any {
+  // recur_until é coluna `date` no banco: string vazia ("") quebra o upsert INTEIRO
+  // (e a tarefa "volta" no próximo reload). Só envia data válida AAAA-MM-DD, senão null.
+  const ru = (t as any).recurUntil;
+  const recurUntil = (typeof ru === "string" && /^\d{4}-\d{2}-\d{2}/.test(ru)) ? ru.slice(0, 10) : null;
+  const rdi = (t as any).recurDaysInterval;
+  const recurDaysInterval = (rdi != null && rdi !== "" && Number.isFinite(Number(rdi))) ? Number(rdi) : null;
   return {
     id: t.id, title: t.title, client: t.client, client_id: t.clientId,
     module: t.module, sector: t.sector, type: t.type, assignee: t.assignee,
@@ -139,9 +145,9 @@ export function mapTaskToDB(t: Task): any {
     paused_at: (t as any).pausedAt ?? null,
     accumulated_minutes: (t as any).accumulatedMinutes ?? 0,
     description: (t as any).description ?? null,
-    recur_until: (t as any).recurUntil ?? null,
+    recur_until: recurUntil,
     recur_type: (t as any).recurType ?? null,
-    recur_days_interval: (t as any).recurDaysInterval ?? null,
+    recur_days_interval: recurDaysInterval,
     created_by: (t as any).createdBy ?? null,
   };
 }

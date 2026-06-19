@@ -626,7 +626,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (task) {
       const mapped = mapTaskToDB(task);
       db('tasks').upsert(mapped).then(({ error }: any) => {
-        if (error) console.error('Direct updateTask DB write failed:', error);
+        if (error) { console.error('Direct updateTask DB write failed:', error); toast.error(`Não foi possível salvar a tarefa (vai reverter no recarregamento): ${error.message}`); }
       });
     }
   },
@@ -646,7 +646,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const task = get().tasks.find(t => t.id === id);
     if (task) {
       const { error } = await db('tasks').upsert(mapTaskToDB(task));
-      if (error) console.error('Direct startTask DB write failed:', error);
+      if (error) { console.error('Direct startTask DB write failed:', error); toast.error(`Não foi possível iniciar a tarefa no banco (vai reverter): ${error.message}`); }
     }
   },
 
@@ -664,7 +664,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const updated = get().tasks.find(t => t.id === id);
     if (updated) {
       const { error } = await db('tasks').upsert(mapTaskToDB(updated));
-      if (error) console.error('pauseTask DB:', error);
+      if (error) { console.error('pauseTask DB:', error); toast.error(`Não foi possível pausar a tarefa no banco (vai reverter): ${error.message}`); }
     }
   },
 
@@ -677,7 +677,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const updated = get().tasks.find(t => t.id === id);
     if (updated) {
       const { error } = await db('tasks').upsert(mapTaskToDB(updated));
-      if (error) console.error('resumeTask DB:', error);
+      if (error) { console.error('resumeTask DB:', error); toast.error(`Não foi possível retomar a tarefa no banco (vai reverter): ${error.message}`); }
     }
   },
 
@@ -698,7 +698,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const completedTask = get().tasks.find(t => t.id === id);
     if (completedTask) {
       const { error } = await db('tasks').upsert(mapTaskToDB(completedTask));
-      if (error) console.error('completeTask DB:', error);
+      if (error) { console.error('completeTask DB:', error); toast.error(`Não foi possível concluir a tarefa no banco (vai reverter): ${error.message}`); }
     }
 
     // === Recurrence: recreate task based on frequency type ===
