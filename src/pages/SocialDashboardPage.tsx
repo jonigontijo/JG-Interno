@@ -225,6 +225,18 @@ export default function SocialDashboardPage() {
       posted: newPosted,
       posted_at: newPosted ? new Date().toISOString() : null,
     }).eq('id', postId);
+    // Avisa o app do cliente quando o conteúdo vai ao ar (producao.status).
+    if (newPosted) {
+      const post = clientPosts.find((p) => p.id === postId);
+      const client = post && clients.find((c) => c.id === post.client_id);
+      if (client?.jgAppClienteId) {
+        notifyApp("producao.status", client.jgAppClienteId, {
+          id: postId,
+          titulo: post.file_name ?? "Conteúdo",
+          status: "publicado",
+        }, { titulo: "Conteúdo publicado", mensagem: "Seu post foi ao ar 🎉" });
+      }
+    }
     loadClientPosts();
     toast.success(newPosted ? "Marcado como postado!" : "Desmarcado");
   };
