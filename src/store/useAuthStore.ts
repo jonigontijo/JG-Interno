@@ -38,6 +38,8 @@ export const ALL_MODULES = [
   { key: "inside-sales", label: "Inside Sales", path: "/inside-sales" },
   { key: "approvals", label: "Aprovações", path: "/approvals" },
   { key: "requests", label: "Requisições", path: "/requests" },
+  { key: "feedbacks", label: "Feedbacks", path: "/feedbacks" },
+  { key: "nps", label: "NPS", path: "/nps" },
   { key: "ad-hoc", label: "Demandas Avulsas", path: "/ad-hoc" },
   { key: "recurrences", label: "Recorrências", path: "/recurrences" },
   { key: "ai-alerts", label: "IA Campanhas", path: "/ai-alerts" },
@@ -48,7 +50,7 @@ export const ALL_MODULES = [
   { key: "help", label: "Central de Ajuda", path: "/help" },
 ] as const;
 
-const DEFAULT_MODULES = ["dashboard", "clients", "tasks", "requests", "ad-hoc", "help"];
+const DEFAULT_MODULES = ["dashboard", "clients", "tasks", "requests", "feedbacks", "nps", "ad-hoc", "help"];
 
 function db(table: string) {
   return (supabase as any).from(table);

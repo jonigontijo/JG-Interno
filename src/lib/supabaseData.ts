@@ -202,6 +202,8 @@ export function mapRequestFromDB(row: any): any {
     redistributedTo: row.redistributed_to, redistributedBy: row.redistributed_by,
     attachments: row.attachments || [],
     deliveryLinks: row.delivery_links || [],
+    lido: row.lido || false,
+    lidoEm: row.lido_em,
   };
 }
 
@@ -216,6 +218,8 @@ export function mapRequestToDB(r: any): any {
     redistributed_to: r.redistributedTo, redistributed_by: r.redistributedBy,
     attachments: r.attachments || [],
     delivery_links: r.deliveryLinks || [],
+    lido: r.lido || false,
+    lido_em: r.lidoEm,
   };
 }
 
@@ -296,6 +300,26 @@ export async function loadInternalRequests() {
   return rows.map(mapRequestFromDB);
 }
 
+// ============ NPS VOTES ============
+export function mapNPSVoteFromDB(row: any): any {
+  return {
+    id: row.id,
+    jginternoUsername: row.jginterno_username,
+    gestorNome: row.gestor_nome,
+    jginternoMemberId: row.jginterno_member_id,
+    clientName: row.client_name,
+    jgAppClienteId: row.jg_app_cliente_id,
+    nota: row.nota,
+    comentario: row.comentario,
+    createdAt: row.created_at,
+  };
+}
+
+export async function loadNPSVotes() {
+  const rows = await selectAll('nps_votes');
+  return rows.map(mapNPSVoteFromDB);
+}
+
 export async function loadClientPipelines() {
   const rows = await selectAll('client_pipelines');
   return rows.map(mapPipelineFromDB);
@@ -320,6 +344,7 @@ export async function loadAllData() {
     safeAll(selectAll('client_recurring_services')),
     safeAll(selectAll('quote_requests')),
     safeAll(selectAll('internal_requests')),
+    safeAll(selectAll('nps_votes')),
     safeAll(selectAll('client_pipelines')),
     safeAll(selectAll('onboarding_data')),
     safeAll(selectAll('settings')),
@@ -329,13 +354,13 @@ export async function loadAllData() {
   ]);
 
   const [teamRes, clientsRes, tasksRes, leadsRes, assignmentsRes, servicesRes,
-    quotesRes, requestsRes, pipelinesRes, onboardingRes, settingsRes, prodRes, profilesRes, dnaRes] = results;
+    quotesRes, requestsRes, npsVotesRes, pipelinesRes, onboardingRes, settingsRes, prodRes, profilesRes, dnaRes] = results;
 
   const errors = results.filter(r => r.error);
   if (errors.length > 0) {
     console.error('DB load errors:', errors.map(e => e.error));
     if (errors.length > 6) {
-      throw new Error(`Falha ao conectar ao banco de dados (${errors.length}/14 queries falharam)`);
+      throw new Error(`Falha ao conectar ao banco de dados (${errors.length}/15 queries falharam)`);
     }
   }
 
@@ -358,6 +383,7 @@ export async function loadAllData() {
     leads: leadsRes.data.map(mapLeadFromDB),
     quoteRequests: quotesRes.data.map(mapQuoteFromDB),
     requests: requestsRes.data.map(mapRequestFromDB),
+    npsVotes: npsVotesRes.data.map(mapNPSVoteFromDB),
     clientPipelines: pipelinesRes.data.map(mapPipelineFromDB),
     onboardingData: onboardingRes.data.map((row: any) => ({
       clientId: row.client_id, checklist: row.checklist || {}, accessData: row.access_data || {},

@@ -8,7 +8,7 @@ import {
   Wrench, RefreshCw, Bot, BarChart3, Activity, TrendingUp,
   Shield, ClipboardList, ChevronDown, ChevronRight, Zap, Calendar,
   Settings, Menu, X, LogOut, Send, HelpCircle, KeyRound, Eye, EyeOff, Mail,
-  Sun, Moon, Laptop
+  Sun, Moon, Laptop, MessageSquare, Star
 } from "lucide-react";
 import { useTheme, type Theme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,6 +69,8 @@ const navSections: NavSection[] = [
     items: [
       { label: "Aprovações", icon: CheckCircle, path: "/approvals", badgeKey: "approvals", moduleKey: "approvals" },
       { label: "Requisições", icon: Send, path: "/requests", badgeKey: "requests", moduleKey: "requests" },
+      { label: "Feedbacks", icon: MessageSquare, path: "/feedbacks", badgeKey: "feedbacks", moduleKey: "feedbacks" },
+      { label: "NPS", icon: Star, path: "/nps", moduleKey: "nps" },
       { label: "Demandas Avulsas", icon: Wrench, path: "/ad-hoc", moduleKey: "ad-hoc" },
       { label: "Recorrências", icon: RefreshCw, path: "/recurrences", moduleKey: "recurrences" },
       { label: "IA Campanhas", icon: Bot, path: "/ai-alerts", moduleKey: "ai-alerts" },
@@ -88,7 +90,7 @@ const navSections: NavSection[] = [
 
 function userHasModule(moduleKey: string, moduleAccess?: string[], isAdmin?: boolean): boolean {
   if (isAdmin) return true;
-  if (!moduleAccess) return ["dashboard", "clients", "tasks", "requests", "ad-hoc", "recurrences"].includes(moduleKey);
+  if (!moduleAccess) return ["dashboard", "clients", "tasks", "requests", "feedbacks", "nps", "ad-hoc", "recurrences"].includes(moduleKey);
   return moduleAccess.includes(moduleKey);
 }
 
@@ -129,7 +131,11 @@ export default function AppSidebar() {
   };
 
   const myPendingRequests = requests.filter(
-    (r) => r.assignedToName === currentUser?.name && r.status === "pending"
+    (r) => r.assignedToName === currentUser?.name && r.status === "pending" && r.department !== "Feedback do Cliente"
+  ).length;
+
+  const myUnreadFeedbacks = requests.filter(
+    (r) => r.department === "Feedback do Cliente" && r.assignedToName === currentUser?.name && !r.lido
   ).length;
 
   const isAdminOrGerente = currentUser?.isAdmin || currentUser?.roles?.some(r => r.includes("Gerente Operacional"));
@@ -143,6 +149,7 @@ export default function AppSidebar() {
     approvals: tasks.filter((t) => t.status === "approval").length,
     quotes: quoteRequests.filter((q) => q.status === "pending").length,
     requests: myPendingRequests,
+    feedbacks: myUnreadFeedbacks,
     clients: clientsWithoutTeam,
   };
 

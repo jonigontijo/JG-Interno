@@ -1,13 +1,13 @@
 import { create } from "zustand";
 import { mockClients, mockTasks, mockLeads, mockTeam } from "@/data/mockData";
 import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
-import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQuoteRequests, loadInternalRequests, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB, db } from "@/lib/supabaseData";
+import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQuoteRequests, loadInternalRequests, loadNPSVotes, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB, db } from "@/lib/supabaseData";
 import { toast } from "sonner";
 import { notifyApp } from "@/lib/notifyApp";
 import { useAuthStore } from "./useAuthStore";
 
 export type {
-  QuoteRequest, InternalRequest, ProductivityRecord, SettingItem,
+  QuoteRequest, InternalRequest, NPSVote, ProductivityRecord, SettingItem,
   OnboardingData, ClientDnaLink, ClientDnaCredential, ClientDnaDate, ClientDnaFile,
   ClientDna, ClientPipelineState, AppState,
   Client, Task, Lead, TeamMember, RecurringService, ClientTeamAssignment,
@@ -38,6 +38,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   clientDna: [],
   clientPipelines: [],
   requests: [],
+  npsVotes: [],
   productivity: [],
   notifications: [],
   settings: [],
@@ -59,6 +60,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           team: [...mockTeam],
           quoteRequests: [],
           requests: [],
+          npsVotes: [],
           clientPipelines: [],
           onboardingData: [],
           settings: DEFAULT_SETTINGS,
@@ -74,6 +76,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         team: data.team,
         quoteRequests: data.quoteRequests,
         requests: data.requests,
+        npsVotes: data.npsVotes,
         clientPipelines: data.clientPipelines,
         onboardingData: data.onboardingData,
         clientDna: data.clientDna || [],
@@ -140,6 +143,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
   },
 
+  reloadNPSVotes: async () => {
+    try {
+      const npsVotes = await loadNPSVotes();
+      set({ npsVotes });
+    } catch (err) {
+      console.error('Error reloading NPS votes:', err);
+    }
+  },
+
   reset: () => {
     set({
       clients: [],
@@ -150,6 +162,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       onboardingData: [],
       clientPipelines: [],
       requests: [],
+      npsVotes: [],
       productivity: [],
       notifications: [],
       settings: [],
