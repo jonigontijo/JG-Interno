@@ -81,6 +81,7 @@ export function mapClientFromDB(row: any, assignments: any[] = [], services: any
     })),
     email: row.email ?? undefined,
     jgAppClienteId: row.jg_app_cliente_id ?? undefined,
+    createdBy: row.created_by ?? undefined,
   };
 }
 
@@ -103,6 +104,8 @@ export function mapClientToDB(c: Client): any {
     // mandar undefined aqui apagaria o vínculo num update vindo do front.
     ...(c.email !== undefined ? { email: c.email } : {}),
     ...(c.jgAppClienteId !== undefined ? { jg_app_cliente_id: c.jgAppClienteId } : {}),
+    // Mesmo motivo: so vai no insert. Um update do front nunca sobrescreve o autor.
+    ...(c.createdBy !== undefined ? { created_by: c.createdBy } : {}),
   };
 }
 

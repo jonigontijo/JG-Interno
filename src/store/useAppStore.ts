@@ -203,7 +203,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       clientPipelines: [...s.clientPipelines, pipeline],
     }));
     // Direct DB writes for client, task, and pipeline
-    db('clients').upsert(mapClientToDB(newClient)).then(({ error }: any) => {
+    db('clients').insert(mapClientToDB(newClient)).then(({ error }: any) => {
       if (error) console.error('Direct addClient DB write failed:', error);
     });
     db('tasks').upsert(mapTaskToDB(pipelineTask)).then(({ error }: any) => {
@@ -293,7 +293,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     });
     const updatedClient = get().clients.find(c => c.id === clientId);
     if (updatedClient) {
-      db('clients').upsert(mapClientToDB(updatedClient)).then(({ error }: any) => {
+      db('clients').update(mapClientToDB(updatedClient)).eq('id', updatedClient.id).then(({ error }: any) => {
         if (error) console.error('startClientPipeline DB client:', error);
       });
     }
@@ -353,7 +353,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
     const updatedClient = get().clients.find(c => c.id === clientId);
     if (updatedClient) {
-      db('clients').upsert(mapClientToDB(updatedClient)).then(({ error }: any) => { if (error) console.error('resetPipeline DB client:', error); });
+      db('clients').update(mapClientToDB(updatedClient)).eq('id', updatedClient.id).then(({ error }: any) => { if (error) console.error('resetPipeline DB client:', error); });
     }
   },
 
@@ -430,7 +430,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         if (doneTask) db('tasks').upsert(mapTaskToDB(doneTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB done task:', error); });
       }
       const updClient = get().clients.find(c => c.id === clientId);
-      if (updClient) db('clients').upsert(mapClientToDB(updClient)).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
+      if (updClient) db('clients').update(mapClientToDB(updClient)).eq('id', updClient.id).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
     } else {
       set((s) => ({
         tasks: s.tasks.map(t => {
@@ -456,7 +456,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         if (doneTask) db('tasks').upsert(mapTaskToDB(doneTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB done task:', error); });
       }
       const finClient = get().clients.find(c => c.id === clientId);
-      if (finClient) db('clients').upsert(mapClientToDB(finClient)).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
+      if (finClient) db('clients').update(mapClientToDB(finClient)).eq('id', finClient.id).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
     }
   },
   updateClient: (id, data) => {
@@ -464,7 +464,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Direct DB write
     const client = get().clients.find(c => c.id === id);
     if (client) {
-      db('clients').upsert(mapClientToDB(client)).then(({ error }: any) => {
+      db('clients').update(mapClientToDB(client)).eq('id', client.id).then(({ error }: any) => {
         if (error) console.error('Direct updateClient DB write failed:', error);
       });
     }
@@ -800,7 +800,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           }
           db('tasks').upsert(mapTaskToDB(nextTask)).then(({ error }: any) => { if (error) console.error('completeTask next task DB:', error); });
           const advClient = get().clients.find(c => c.id === task.clientId);
-          if (advClient) db('clients').upsert(mapClientToDB(advClient)).then(({ error }: any) => { if (error) console.error('completeTask client DB:', error); });
+          if (advClient) db('clients').update(mapClientToDB(advClient)).eq('id', advClient.id).then(({ error }: any) => { if (error) console.error('completeTask client DB:', error); });
         } else {
           set((s) => ({
             clientPipelines: s.clientPipelines.map(p =>
@@ -818,7 +818,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
             db('client_pipelines').upsert({ client_id: task.clientId, current_step_order: finPipe.currentStepOrder, completed_steps: finPipe.completedSteps, started_at: finPipe.startedAt, completed_at: finPipe.completedAt || null }).then(({ error }: any) => { if (error) console.error('completeTask pipeline finish DB:', error); });
           }
           const finCli = get().clients.find(c => c.id === task.clientId);
-          if (finCli) db('clients').upsert(mapClientToDB(finCli)).then(({ error }: any) => { if (error) console.error('completeTask client finish DB:', error); });
+          if (finCli) db('clients').update(mapClientToDB(finCli)).eq('id', finCli.id).then(({ error }: any) => { if (error) console.error('completeTask client finish DB:', error); });
         }
       }
     }
@@ -938,7 +938,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }));
       // Direct DB writes
       const updatedClient = get().clients.find(c => c.id === qr.clientId);
-      if (updatedClient) db('clients').upsert(mapClientToDB(updatedClient)).then(({ error }: any) => { if (error) console.error('completeQuote client DB:', error); });
+      if (updatedClient) db('clients').update(mapClientToDB(updatedClient)).eq('id', updatedClient.id).then(({ error }: any) => { if (error) console.error('completeQuote client DB:', error); });
       const updatedQr = get().quoteRequests.find(q => q.id === id);
       if (updatedQr) db('quote_requests').upsert(mapQuoteToDB(updatedQr)).then(({ error }: any) => { if (error) console.error('completeQuote qr DB:', error); });
     }

@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { formatCurrency } from "@/data/mockData";
 import { Search, Filter, Plus, AlertCircle, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Users, Zap, Pencil, Power, PowerOff, Download } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -21,6 +21,11 @@ const getDemandStatus = (client: Client, tasks: any[]) => {
   return { label: "Pendente", color: "text-warning", bg: "bg-warning/10" };
 };
 
+// Compara nomes de empresa ignorando acento, caixa e espaco duplicado.
+// "XP Imóveis" e "XP IMOVEIS" viraram dois cadastros por falta disso.
+const normalizeCompany = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/s+/g, " ").trim();
+
 type SortField = "company" | "services" | "dueDay" | "monthlyValue" | null;
 type SortOrder = "asc" | "desc";
 
@@ -32,8 +37,13 @@ const serviceOptions = [
 ];
 
 export default function ClientsPage() {
-  const { clients, tasks, addClient, updateClient } = useAppStore();
+  const { clients, tasks, addClient, updateClient, logAudit } = useAppStore();
   const currentUser = useAuthStore((s) => s.currentUser);
+  // Espelha a RLS de public.clients. O banco e quem decide; isto so evita
+  // oferecer um botao que resultaria em erro de permissao.
+  const canCreateClient = currentUser?.isAdmin === true || currentUser?.canCreateClients === true;
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filterSM, setFilterSM] = useState(false);
@@ -73,13 +83,31 @@ export default function ClientsPage() {
   };
 
   const handleSaveClient = () => {
-    if (!form.company.trim()) {
+    // Guarda sincrona: dois cliques rapidos entram aqui antes de qualquer re-render.
+    if (savingRef.current) return;
+    if (!canCreateClient) {
+      toast.error("Voce nao tem permissao para cadastrar clientes.");
+      return;
+    }
+    const company = form.company.trim();
+    if (!company) {
       toast.error("Informe o nome da empresa");
       return;
     }
+    // Le a store direto: no duplo clique o `clients` deste render ainda nao
+    // enxerga o cadastro que o primeiro clique acabou de inserir.
+    const existing = useAppStore.getState().clients
+      .find((c) => normalizeCompany(c.company) === normalizeCompany(company));
+    if (existing) {
+      toast.error(`"${existing.company}" ja esta cadastrado.`);
+      return;
+    }
+
+    savingRef.current = true;
+    setSaving(true);
     const newClient: Client = {
       id: `c-${Date.now()}`,
-      company: form.company.trim(),
+      company,
       name: form.name.trim(),
       services: form.services,
       monthlyValue: parseFloat(form.monthlyValue) || 0,
@@ -93,17 +121,27 @@ export default function ClientsPage() {
       overdueTasks: 0,
       socialMediaPosts: parseInt(form.socialMediaPosts) || 0,
       postsReadyNextWeek: 0,
+      createdBy: currentUser?.name || "Desconhecido",
     };
-    addClient(newClient);
-    toast.success(`Cliente "${form.company}" adicionado! Pipeline de onboarding iniciado — primeira tarefa criada para o Financeiro.`);
-    setShowModal(false);
-    resetForm();
+    try {
+      addClient(newClient);
+      logAudit(currentUser?.name || "Desconhecido", "Criou cliente", newClient.company, newClient.id);
+      toast.success(`Cliente "${newClient.company}" adicionado! Pipeline de onboarding iniciado — primeira tarefa criada para o Financeiro.`);
+      setShowModal(false);
+      resetForm();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const handleToggleActive = (e: React.MouseEvent, clientId: string, currentSubstatus: string) => {
     e.stopPropagation();
     const newSubstatus = currentSubstatus === "Inativo" ? "Ativo" : "Inativo";
     updateClient(clientId, { substatus: newSubstatus });
+    logAudit(currentUser?.name || "Desconhecido",
+      newSubstatus === "Inativo" ? "Inativou cliente" : "Reativou cliente",
+      clients.find((c) => c.id === clientId)?.company || clientId, clientId);
     toast.success(newSubstatus === "Inativo" ? "Cliente inativado" : "Cliente reativado");
   };
 
@@ -116,7 +154,10 @@ export default function ClientsPage() {
   const handleSaveEdit = (e: React.MouseEvent, clientId: string) => {
     e.stopPropagation();
     if (!editCompanyName.trim()) { toast.error("Nome não pode ficar vazio"); return; }
+    const nomeAnterior = clients.find((c) => c.id === clientId)?.company || clientId;
     updateClient(clientId, { company: editCompanyName.trim() });
+    logAudit(currentUser?.name || "Desconhecido", "Renomeou cliente",
+      `${nomeAnterior} -> ${editCompanyName.trim()}`, clientId);
     toast.success("Nome atualizado");
     setEditingClientId(null);
   };
@@ -211,9 +252,11 @@ export default function ClientsPage() {
         <button onClick={exportToExcel} title="Exportar Ativos e Inativos para Excel" className="flex items-center gap-2 px-4 py-2 rounded-md border text-sm font-medium text-foreground hover:bg-muted transition-colors">
           <Download className="w-4 h-4" /> Exportar Excel
         </button>
-        <button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
-          <Plus className="w-4 h-4" /> Novo Cliente
-        </button>
+        {canCreateClient && (
+          <button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+            <Plus className="w-4 h-4" /> Novo Cliente
+          </button>
+        )}
       </PageHeader>
 
       <div className="flex gap-1 mb-4 border-b">
@@ -499,7 +542,7 @@ export default function ClientsPage() {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors">Cancelar</button>
-            <button onClick={handleSaveClient} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">Salvar</button>
+            <button onClick={handleSaveClient} disabled={saving} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none">{saving ? "Salvando..." : "Salvar"}</button>
           </div>
         </div>
       </Modal>

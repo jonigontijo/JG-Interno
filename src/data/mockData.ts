@@ -56,6 +56,8 @@ export interface Client {
   // JG App integration: login email + vínculo com a conta do cliente no JG App.
   email?: string;
   jgAppClienteId?: string;
+  // Auditoria: quem cadastrou. Gravado uma unica vez, na criacao.
+  createdBy?: string;
 }
 
 export interface Task {

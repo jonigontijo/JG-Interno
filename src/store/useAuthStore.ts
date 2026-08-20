@@ -15,6 +15,9 @@ export interface AppUser {
   moduleAccess?: string[];
   sectorVisibility?: string[];
   recoveryEmail?: string;
+  // Permissao de cadastrar cliente. A regra de verdade esta na RLS da tabela
+  // clients; aqui e so para nao mostrar um botao que o banco vai recusar.
+  canCreateClients?: boolean;
 }
 
 export const ALL_MODULES = [
@@ -123,6 +126,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       moduleAccess: p.module_access || DEFAULT_MODULES,
       sectorVisibility: p.sector_visibility || [],
       recoveryEmail: p.recovery_email || '',
+      canCreateClients: p.can_create_clients === true,
     }));
 
     // Only show active users
@@ -435,5 +439,6 @@ async function loadProfile(authId: string): Promise<AppUser | null> {
     moduleAccess: data.module_access || DEFAULT_MODULES,
     sectorVisibility: data.sector_visibility || [],
     recoveryEmail: data.recovery_email || '',
+    canCreateClients: data.can_create_clients === true,
   };
 }

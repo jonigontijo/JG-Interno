@@ -492,6 +492,7 @@ export default function ClientDetailPage() {
           <button
             onClick={() => {
               if (window.confirm(`Tem certeza que deseja excluir "${client.company}"?`)) {
+                logAudit(currentUser?.name || "Desconhecido", "Excluiu cliente", client.company, client.id);
                 removeClient(client.id); navigate("/clients"); toast.success("Cliente excluído!");
               }
             }}
