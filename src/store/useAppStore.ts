@@ -4,6 +4,7 @@ import { ONBOARDING_PIPELINE } from "@/data/onboardingPipeline";
 import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQuoteRequests, loadInternalRequests, mapTaskToDB, mapClientToDB, mapLeadToDB, mapTeamToDB, mapQuoteToDB, mapRequestToDB, mapProductivityToDB, db } from "@/lib/supabaseData";
 import { toast } from "sonner";
 import { notifyApp } from "@/lib/notifyApp";
+import { completeGroups } from "@/lib/socialIntegration";
 import { useAuthStore } from "./useAuthStore";
 
 export type {
@@ -357,7 +358,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
   },
 
-  forceAdvancePipeline: (clientId) => {
+  forceAdvancePipeline: async (clientId) => {
+    if (get().clientPipelines.find(p => p.clientId === clientId)?.currentStepOrder === 5) {
+      try { await completeGroups(clientId, 0); await get().loadFromDB(); }
+      catch { toast.error("Não foi possível concluir a etapa. Nenhuma confirmação foi registrada."); throw new Error("pipeline_save_failed"); }
+      return;
+    }
     const state = get();
     const pipeline = state.clientPipelines.find(p => p.clientId === clientId);
     if (!pipeline || pipeline.completedAt) return;
@@ -689,6 +695,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (task.startedAt && task.status === "in_progress") {
       timeSpent += Math.round((now.getTime() - new Date(task.startedAt).getTime()) / 60000);
     }
+    const atomicGroups = task.type === "pipeline" && task.id === `t-pipe-${task.clientId}-5`;
+    if (atomicGroups) {
+      try {
+        const changed = await completeGroups(task.clientId, timeSpent);
+        await get().loadFromDB();
+        if (!changed) return;
+      } catch { toast.error("Não foi possível concluir a etapa. Tente novamente."); throw new Error("pipeline_save_failed"); }
+    }
+    if (!atomicGroups) {
     set((s) => ({
       tasks: s.tasks.map((t) =>
         t.id === id ? { ...t, status: "done", completedAt: now.toISOString(), timeSpentMinutes: timeSpent } : t
@@ -698,7 +713,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const completedTask = get().tasks.find(t => t.id === id);
     if (completedTask) {
       const { error } = await db('tasks').upsert(mapTaskToDB(completedTask));
-      if (error) { console.error('completeTask DB:', error); toast.error(`Não foi possível concluir a tarefa no banco (vai reverter): ${error.message}`); }
+      if (error) { await get().loadFromDB(); toast.error("Não foi possível concluir a tarefa no banco."); throw error; }
+    }
     }
 
     // === Recurrence: recreate task based on frequency type ===
@@ -747,7 +763,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }
 
     // === Pipeline advancement ===
-    if (task.type === "pipeline" && task.clientId) {
+    if (!atomicGroups && task.type === "pipeline" && task.clientId) {
       const pipeline = get().clientPipelines.find(p => p.clientId === task.clientId);
       if (pipeline) {
         const currentStep = ONBOARDING_PIPELINE.find(s => s.order === pipeline.currentStepOrder);

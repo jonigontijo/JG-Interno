@@ -124,7 +124,7 @@ export interface AppState {
   updateClient: (id: string, data: Partial<Client>) => void;
   removeClient: (id: string) => void;
   startClientPipeline: (clientId: string) => void;
-  forceAdvancePipeline: (clientId: string) => void;
+  forceAdvancePipeline: (clientId: string) => Promise<void>;
   resetPipeline: (clientId: string) => void;
 
   assignTeamMemberToClient: (clientId: string, assignment: ClientTeamAssignment) => void;

@@ -1,5 +1,15 @@
 project_id = "igmwcdeuqoudrwsmwgpl"
 
+# External HMAC callback and cron/admin endpoints validate authentication in code.
+[functions.jg-social-receive]
+verify_jwt = false
+[functions.jg-social-dispatch]
+verify_jwt = false
+[functions.jg-social-reconcile]
+verify_jwt = false
+[functions.jg-social-admin]
+verify_jwt = false
+
 # Callback externo (n8n / app do cliente) — sem JWT do Supabase,
 # protegido pelo header x-jg-secret (sm_integration_settings.callback_secret).
 [functions.sm-callback]

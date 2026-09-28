@@ -6,6 +6,7 @@ import { formatCurrency, RecurringService } from "@/data/mockData";
 import PageHeader from "@/components/PageHeader";
 import { AtivarAppButton } from "@/components/AtivarAppButton";
 import StatusBadge from "@/components/StatusBadge";
+import ExternalSocialStatus from "@/components/social/ExternalSocialStatus";
 import Modal from "@/components/Modal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -56,6 +57,7 @@ const frequencyColors: Record<string, string> = {
 
 const tabs = [
   { key: "overview", label: "Visão Geral", icon: Briefcase },
+  { key: "external-social", label: "Entregas Social Media", icon: CheckCircle },
   { key: "dna", label: "DNA do Cliente", icon: Zap },
   { key: "team", label: "Equipe", icon: Users },
   { key: "tasks", label: "Tarefas", icon: CheckCircle },
@@ -531,6 +533,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Overview Tab */}
+      {activeTab === "external-social" && <ExternalSocialStatus clientId={client.id} weeklyPosts={client.socialMediaPosts || 0} />}
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-lg border bg-card p-5 space-y-4">

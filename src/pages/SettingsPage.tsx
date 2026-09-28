@@ -5,6 +5,7 @@ import { useAppStore, SettingItem } from "@/store/useAppStore";
 import { toast } from "sonner";
 import { Settings, Plus, Edit2, Trash2, Save, Building2, Clock, Megaphone, Target, Briefcase } from "lucide-react";
 import GoogleCalendarIntegration from "@/components/settings/GoogleCalendarIntegration";
+import SocialIntegrationSettings from "@/components/settings/SocialIntegrationSettings";
 
 const categoryIcons: Record<string, React.ElementType> = {
   Empresa: Building2,
@@ -86,6 +87,7 @@ export default function SettingsPage() {
 
       <div className="space-y-6">
         <GoogleCalendarIntegration adminOnly />
+        <SocialIntegrationSettings />
 
         {allCategories.map(cat => {
           const items = settings.filter(s => s.category === cat);

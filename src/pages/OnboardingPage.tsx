@@ -87,13 +87,11 @@ export default function OnboardingPage() {
     toast.success(`Pipeline de onboarding iniciado para ${company}! Primeira tarefa criada.`);
   };
 
-  const handleCompleteStep = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task && task.status === "pending") {
-      startTask(taskId);
-    }
-    completeTask(taskId);
-    toast.success("Etapa concluída! Próxima tarefa criada automaticamente.");
+  const handleCompleteStep = async (taskId: string) => {
+    try {
+      await completeTask(taskId);
+      toast.success("Etapa concluída! Próxima tarefa criada automaticamente.");
+    } catch { /* Store reports persistence failures. */ }
   };
 
   const handleReturnToSales = () => {
@@ -343,7 +341,7 @@ export default function OnboardingPage() {
                                         <RotateCcw className="w-3 h-3" /> Devolver
                                       </button>
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); forceAdvancePipeline(client.id); toast.success("Etapa concluída! Pipeline avançado."); }}
+                                        onClick={async (e) => { e.stopPropagation(); try { await forceAdvancePipeline(client.id); toast.success("Etapa concluída! Pipeline avançado."); } catch { /* Store reports persistence failures. */ } }}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-warning text-warning-foreground text-[10px] font-medium hover:bg-warning/90 transition-colors"
                                       >
                                         <CheckCircle className="w-3 h-3" /> Concluir Etapa

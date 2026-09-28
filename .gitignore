@@ -29,3 +29,6 @@ dist-ssr
 
 # Backup data
 scripts/backup-lovable.json
+
+# Local Supabase CLI connection metadata
+supabase/.temp/
