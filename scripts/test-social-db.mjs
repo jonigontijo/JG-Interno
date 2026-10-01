@@ -10,6 +10,7 @@ create table clients(id text primary key,company text,services text[],status tex
 create table tasks(id text primary key,client_id text,type text,status text);
 create table client_pipelines(client_id text primary key,completed_steps integer[],current_step_order integer);`);
 await db.exec(await readFile(new URL('../supabase/migrations/20260927000100_social_integration.sql',import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('../supabase/migrations/20261001000100_social_optional_fields.sql',import.meta.url),'utf8'));
 let count=0;
 async function check(sql,expected){const result=await db.query(sql);assert.equal(Object.values(result.rows[0])[0],expected,sql);count++;}
 await db.exec(`insert into clients values('new','Novo',array['Social Media - 3 Posts'],'Financeiro','Ativo',3);`);
@@ -44,6 +45,11 @@ const apply=e=>db.query('select jg_sm_apply($1::jsonb)',[JSON.stringify(e)]);
 await apply(event);await apply(event);
 await check('select count(*)::int from jg_sm_publications',1);
 await check('select count(*)::int from jg_sm_inbox',1);
+await apply({...event,event_id:'reconcile-defaults',data:{...event.data,published_at:null,post_url:null,notes:null,is_deleted:false,is_cancelled:false}});
+await check('select count(*)::int from jg_sm_publications',1);
+await check('select count(*)::int from jg_sm_publication_history',1);
+await assert.rejects(()=>apply({...event,event_id:'real-flag-change',data:{...event.data,is_deleted:true}}),/version_conflict/);count++;
+
 await assert.rejects(()=>apply({...event,data:{...event.data,status:'published'}}),/event_conflict/);count++;
 await apply({...event,event_id:'older',data:{...event.data,version:1}});
 await check(`select version::int from jg_sm_publications`,2);
