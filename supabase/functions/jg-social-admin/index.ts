@@ -12,6 +12,20 @@ Deno.serve((req) =>
     const actor = await requireAdmin(req),
       body = JSON.parse(await readBody(req)),
       client = db();
+    if (body.action === "health") {
+      const local = await client.from("jg_sm_outbox").select("id", { count: "exact", head: true }).eq("status", "needs_attention");
+      if (local.error) return json({ error: "health_unavailable" }, 503);
+      let remoteStatus = null;
+      try {
+        const result = await remote("/api/jg-interno/status", "GET");
+        const stats = result.outbox_stats;
+        if (!stats || ![stats.failed, stats.pending].every((n) => Number.isSafeInteger(n) && n >= 0)) {
+          throw new Error("invalid_status");
+        }
+        remoteStatus = { failed: stats.failed, pending: stats.pending };
+      } catch { /* Unknown is surfaced as an alert, never as a healthy queue. */ }
+      return json({ local_attention: local.count || 0, remote: remoteStatus, checked_at: new Date().toISOString() });
+    }
     if (
       typeof body.client_id !== "string" || body.client_id.length > 1000
     ) return json({ error: "invalid_client" }, 400);
