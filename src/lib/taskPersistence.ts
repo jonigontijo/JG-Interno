@@ -21,9 +21,12 @@ type WriteFn = (task: Task) => Promise<{ error: { message?: string } | null; sta
 const RETRY_DELAYS_MS = [2000, 5000, 15000];
 
 // Sem resposta (status 0/undefined: rede caiu, timeout) ou erro do lado do
-// servidor/gateway vale tentar de novo. 4xx e dado invalido: repetir nao adianta.
+// servidor/gateway vale tentar de novo. 401 tambem: quando o Auth cai junto com
+// o banco o token expira sem renovar e o supabase-js passa a mandar a chave anon
+// (foi o caso de metade das gravacoes perdidas em out/2026); depois de renovar
+// a sessao a mesma escrita passa. Outros 4xx sao dado invalido: repetir nao adianta.
 export function isTransient(status: number | undefined): boolean {
-  return !status || status === 408 || status === 429 || status >= 500;
+  return !status || status === 401 || status === 408 || status === 429 || status >= 500;
 }
 
 export function createTaskSaver(write: WriteFn, sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))) {

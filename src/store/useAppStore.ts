@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { notifyApp } from "@/lib/notifyApp";
 import { completeGroups } from "@/lib/socialIntegration";
 import { createTaskSaver } from "@/lib/taskPersistence";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "./useAuthStore";
 
 export type {
@@ -40,6 +41,8 @@ const LOAD_LABELS: Record<string, string> = {
 const taskSaver = createTaskSaver(async (task) => {
   try {
     const { error, status } = await db('tasks').upsert(mapTaskToDB(task));
+    // Sessao expirada: renova antes da proxima tentativa (que o saver agenda).
+    if (status === 401) await supabase.auth.refreshSession().catch(() => undefined);
     return { error, status };
   } catch (error) {
     return { error: { message: error instanceof Error ? error.message : String(error) }, status: undefined };

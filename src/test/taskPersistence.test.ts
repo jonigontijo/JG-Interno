@@ -24,6 +24,14 @@ describe("task saver", () => {
     expect(saver.pendingCount()).toBe(0);
   });
 
+  it("retries a write sent with an expired session instead of dropping it", async () => {
+    const expiredSession = { error: { message: "permission denied for table tasks" }, status: 401 };
+    const write = vi.fn().mockResolvedValueOnce(expiredSession).mockResolvedValueOnce(ok);
+    const saver = createTaskSaver(write, noSleep);
+    await expect(saver.save(task("t1"))).resolves.toBe("saved");
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps an unsaved task visible across reloads while the database is down", async () => {
     const saver = createTaskSaver(vi.fn().mockResolvedValue(gatewayTimeout), noSleep);
     const local = task("t-new", "criada durante a queda");
@@ -78,7 +86,7 @@ describe("task saver", () => {
   });
 
   it("classifies statuses", () => {
-    expect([0, undefined, 408, 429, 500, 503, 522].every(isTransient)).toBe(true);
-    expect([400, 401, 403, 404, 409].some(isTransient)).toBe(false);
+    expect([0, undefined, 401, 408, 429, 500, 503, 522].every(isTransient)).toBe(true);
+    expect([400, 403, 404, 409].some(isTransient)).toBe(false);
   });
 });
