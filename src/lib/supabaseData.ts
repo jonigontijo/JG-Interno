@@ -10,11 +10,23 @@ export function db(table: string) {
 // independente do tamanho da tabela. Sem isso, tarefas (e qualquer outra entidade
 // que ultrapasse 1000 registros) somem aleatoriamente apos um F5.
 const PAGE_SIZE = 1000;
+
+// Sem ORDER BY o Postgres devolve as linhas na ordem fisica, que muda a cada
+// UPDATE. Como cada pagina e uma requisicao separada, uma tarefa salva entre a
+// pagina 1 e a 2 pode ser pulada (ou repetida). Ordenar pela PK deixa o corte estavel.
+const PRIMARY_KEY: Record<string, string> = {
+  client_dna: 'client_id',
+  client_pipelines: 'client_id',
+  onboarding_data: 'client_id',
+  productivity: 'user_id',
+};
+
 export async function selectAll(table: string, columns: string = '*'): Promise<any[]> {
   const out: any[] = [];
+  const orderBy = PRIMARY_KEY[table] || 'id';
   for (let from = 0; ; from += PAGE_SIZE) {
     const to = from + PAGE_SIZE - 1;
-    const { data, error } = await db(table).select(columns).range(from, to);
+    const { data, error } = await db(table).select(columns).order(orderBy, { ascending: true }).range(from, to);
     if (error) throw error;
     const rows = data || [];
     out.push(...rows);
@@ -354,6 +366,24 @@ export async function loadAllData() {
   const allTeam = teamRes.data.map(mapTeamFromDB);
   const activeTeam = allTeam.filter((m: TeamMember) => activeProfileNames.has(m.name.toLowerCase()));
 
+  // Fatias do estado cuja carga falhou. Elas voltam como [] acima, mas o store
+  // NAO deve aplica-las: trocar a lista atual por [] e o que fazia as tarefas
+  // "sumirem" sem aviso quando o banco engasgava (out/2026).
+  const failedBy: [string, { error: unknown | null }[]][] = [
+    ['team', [teamRes, profilesRes]],
+    ['clients', [clientsRes, assignmentsRes, servicesRes]],
+    ['tasks', [tasksRes]],
+    ['leads', [leadsRes]],
+    ['quoteRequests', [quotesRes]],
+    ['requests', [requestsRes]],
+    ['clientPipelines', [pipelinesRes]],
+    ['onboardingData', [onboardingRes]],
+    ['settings', [settingsRes]],
+    ['productivity', [prodRes]],
+    ['clientDna', [dnaRes]],
+  ];
+  const failed = failedBy.filter(([, deps]) => deps.some(r => r.error)).map(([key]) => key);
+
   return {
     team: activeTeam,
     clients: clientsRes.data.map((row: any) => mapClientFromDB(row, assignments, services)),
@@ -376,5 +406,6 @@ export async function loadAllData() {
       files: row.files || [],
     })),
     _dbConnected: true,
+    _failed: failed,
   };
 }

@@ -5,6 +5,7 @@ import { loadAllData, loadClients, loadTasks, loadTeamMembers, loadLeads, loadQu
 import { toast } from "sonner";
 import { notifyApp } from "@/lib/notifyApp";
 import { completeGroups } from "@/lib/socialIntegration";
+import { createTaskSaver } from "@/lib/taskPersistence";
 import { useAuthStore } from "./useAuthStore";
 
 export type {
@@ -29,6 +30,46 @@ const DEFAULT_SETTINGS: SettingItem[] = [
   { id: "s10", category: "Operação", label: "Capacidade Máxima por Colaborador", value: "40 horas/semana", type: "text" },
 ];
 
+const LOAD_LABELS: Record<string, string> = {
+  team: "equipe", clients: "clientes", tasks: "tarefas", leads: "leads",
+  quoteRequests: "orçamentos", requests: "solicitações", clientPipelines: "pipelines",
+  onboardingData: "onboarding", settings: "configurações", productivity: "produtividade",
+  clientDna: "DNA dos clientes",
+};
+
+const taskSaver = createTaskSaver(async (task) => {
+  try {
+    const { error, status } = await db('tasks').upsert(mapTaskToDB(task));
+    return { error, status };
+  } catch (error) {
+    return { error: { message: error instanceof Error ? error.message : String(error) }, status: undefined };
+  }
+});
+
+// Grava a tarefa sem travar a tela. Se o banco nao confirmar, a tarefa continua
+// visivel (os reloads a mesclam) e o usuario e avisado em vez de perde-la calado.
+function persistTask(task: Task) {
+  taskSaver.save(task).then((result) => notifySaveResult(task, result));
+}
+
+// Mesma fila, para quem precisa esperar a confirmacao (iniciar/pausar/retomar).
+async function saveTaskNow(task: Task) {
+  notifySaveResult(task, await taskSaver.save(task));
+}
+
+function notifySaveResult(task: Task, result: string) {
+  if (result === "pending") {
+    toast.error(`A tarefa "${task.title}" ainda não foi salva no banco`, {
+      id: `task-unsaved-${task.id}`,
+      description: "Ela continua na sua tela e será reenviada automaticamente. Não feche esta aba até a confirmação.",
+    });
+  } else if (result === "rejected") {
+    toast.error(`O banco recusou salvar a tarefa "${task.title}". Ela vai sumir ao recarregar; refaça a alteração.`, { id: `task-unsaved-${task.id}` });
+  } else if (result === "saved") {
+    toast.dismiss(`task-unsaved-${task.id}`);
+  }
+}
+
 export const useAppStore = create<AppState>()((set, get) => ({
   clients: [],
   tasks: [],
@@ -47,7 +88,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     try {
       const data = await loadAllData();
 
-      const isFirstSetup = data._dbConnected &&
+      const isFirstSetup = data._dbConnected && data._failed.length === 0 &&
         data.clients.length === 0 && data.tasks.length === 0 &&
         data.team.length === 0 && data.leads.length === 0;
 
@@ -68,9 +109,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
         return;
       }
 
-      set({
+      const fresh: Partial<AppState> = {
         clients: data.clients,
-        tasks: data.tasks,
+        tasks: taskSaver.merge(data.tasks),
         leads: data.leads,
         team: data.team,
         quoteRequests: data.quoteRequests,
@@ -80,7 +121,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
         clientDna: data.clientDna || [],
         settings: data.settings.length > 0 ? data.settings : DEFAULT_SETTINGS,
         productivity: data.productivity,
-      });
+      };
+      // O que falhou fica como estava na tela: trocar por [] fazia tudo "sumir".
+      for (const key of data._failed) delete (fresh as Record<string, unknown>)[key];
+      set(fresh);
+
+      if (data._failed.length > 0) {
+        const what = data._failed.map((k) => LOAD_LABELS[k] || k).join(", ");
+        toast.error(`Não foi possível carregar: ${what}`, {
+          id: "load-partial-failure",
+          description: "O banco não respondeu. Mostrando o que já estava na tela; tente recarregar em instantes.",
+        });
+      } else {
+        taskSaver.retryPending(notifySaveResult);
+      }
     } catch (err) {
       console.error('Error loading data from DB:', err);
       toast.error('Erro ao carregar dados do banco. Verifique sua conexão.');
@@ -99,7 +153,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   reloadTasks: async () => {
     try {
       const tasks = await loadTasks();
-      set({ tasks });
+      set({ tasks: taskSaver.merge(tasks) });
+      taskSaver.retryPending(notifySaveResult);
     } catch (err) {
       console.error('Error reloading tasks:', err);
     }
@@ -207,9 +262,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     db('clients').insert(mapClientToDB(newClient)).then(({ error }: any) => {
       if (error) console.error('Direct addClient DB write failed:', error);
     });
-    db('tasks').upsert(mapTaskToDB(pipelineTask)).then(({ error }: any) => {
-      if (error) console.error('Direct addClient pipeline task DB write failed:', error);
-    });
+    persistTask(pipelineTask);
     db('client_pipelines').upsert({
       client_id: pipeline.clientId, current_step_order: pipeline.currentStepOrder,
       completed_steps: pipeline.completedSteps, started_at: pipeline.startedAt,
@@ -289,9 +342,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       client_id: pipeline.clientId, current_step_order: pipeline.currentStepOrder,
       completed_steps: pipeline.completedSteps, started_at: pipeline.startedAt,
     }).then(({ error }: any) => { if (error) console.error('startClientPipeline DB pipeline:', error); });
-    db('tasks').upsert(mapTaskToDB(pipelineTask)).then(({ error }: any) => {
-      if (error) console.error('startClientPipeline DB task:', error);
-    });
+    persistTask(pipelineTask);
     const updatedClient = get().clients.find(c => c.id === clientId);
     if (updatedClient) {
       db('clients').update(mapClientToDB(updatedClient)).eq('id', updatedClient.id).then(({ error }: any) => {
@@ -348,9 +399,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }).then(({ error }: any) => { if (error) console.error('resetPipeline DB pipeline:', error); });
 
     oldTaskIds.forEach(tid => {
+      taskSaver.forget(tid);
       db('tasks').delete().eq('id', tid).then(({ error }: any) => { if (error) console.error('resetPipeline DB delete task:', error); });
     });
-    db('tasks').upsert(mapTaskToDB(pipelineTask)).then(({ error }: any) => { if (error) console.error('resetPipeline DB new task:', error); });
+    persistTask(pipelineTask);
 
     const updatedClient = get().clients.find(c => c.id === clientId);
     if (updatedClient) {
@@ -429,11 +481,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db('client_pipelines').upsert({ client_id: clientId, current_step_order: updPipeline.currentStepOrder, completed_steps: updPipeline.completedSteps, started_at: updPipeline.startedAt, completed_at: updPipeline.completedAt || null }).then(({ error }: any) => { if (error) console.error('forceAdvance DB pipeline:', error); });
       }
       if (!existingNextTask) {
-        db('tasks').upsert(mapTaskToDB(nextTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB next task:', error); });
+        persistTask(nextTask);
       }
       if (needsMarkDone) {
         const doneTask = get().tasks.find(t => t.id === currentTaskId);
-        if (doneTask) db('tasks').upsert(mapTaskToDB(doneTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB done task:', error); });
+        if (doneTask) persistTask(doneTask);
       }
       const updClient = get().clients.find(c => c.id === clientId);
       if (updClient) db('clients').update(mapClientToDB(updClient)).eq('id', updClient.id).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
@@ -459,7 +511,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }
       if (needsMarkDone) {
         const doneTask = get().tasks.find(t => t.id === currentTaskId);
-        if (doneTask) db('tasks').upsert(mapTaskToDB(doneTask)).then(({ error }: any) => { if (error) console.error('forceAdvance DB done task:', error); });
+        if (doneTask) persistTask(doneTask);
       }
       const finClient = get().clients.find(c => c.id === clientId);
       if (finClient) db('clients').update(mapClientToDB(finClient)).eq('id', finClient.id).then(({ error }: any) => { if (error) console.error('forceAdvance DB client:', error); });
@@ -607,9 +659,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       set((s) => ({ tasks: [...s.tasks, ...newTasks] }));
       // Direct DB writes for all generated tasks
       for (const t of newTasks) {
-        db('tasks').upsert(mapTaskToDB(t)).then(({ error }: any) => {
-          if (error) console.error('Direct generateRecurringTasks DB write failed:', error);
-        });
+        persistTask(t);
       }
     }
   },
@@ -618,26 +668,19 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const createdBy = task.createdBy || useAuthStore.getState().currentUser?.name;
     const enriched: Task = createdBy ? { ...task, createdBy } : task;
     set((s) => ({ tasks: [...s.tasks, enriched] }));
-    db('tasks').upsert(mapTaskToDB(enriched)).then(({ error }: any) => {
-      if (error) {
-        console.error('Direct addTask DB write failed:', error);
-        toast.error('Erro ao salvar tarefa no banco');
-      }
-    });
+    persistTask(enriched);
   },
   updateTask: (id, data) => {
     set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...data } : t)) }));
     // Direct DB update
     const task = get().tasks.find(t => t.id === id);
     if (task) {
-      const mapped = mapTaskToDB(task);
-      db('tasks').upsert(mapped).then(({ error }: any) => {
-        if (error) { console.error('Direct updateTask DB write failed:', error); toast.error(`Não foi possível salvar a tarefa (vai reverter no recarregamento): ${error.message}`); }
-      });
+      persistTask(task);
     }
   },
   deleteTask: (id) => {
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+    taskSaver.forget(id);
     db('tasks').delete().eq('id', id).then(({ error }: any) => {
       if (error) console.error('Direct deleteTask DB write failed:', error);
     });
@@ -651,8 +694,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     const task = get().tasks.find(t => t.id === id);
     if (task) {
-      const { error } = await db('tasks').upsert(mapTaskToDB(task));
-      if (error) { console.error('Direct startTask DB write failed:', error); toast.error(`Não foi possível iniciar a tarefa no banco (vai reverter): ${error.message}`); }
+      await saveTaskNow(task);
     }
   },
 
@@ -669,8 +711,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     const updated = get().tasks.find(t => t.id === id);
     if (updated) {
-      const { error } = await db('tasks').upsert(mapTaskToDB(updated));
-      if (error) { console.error('pauseTask DB:', error); toast.error(`Não foi possível pausar a tarefa no banco (vai reverter): ${error.message}`); }
+      await saveTaskNow(updated);
     }
   },
 
@@ -682,8 +723,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     const updated = get().tasks.find(t => t.id === id);
     if (updated) {
-      const { error } = await db('tasks').upsert(mapTaskToDB(updated));
-      if (error) { console.error('resumeTask DB:', error); toast.error(`Não foi possível retomar a tarefa no banco (vai reverter): ${error.message}`); }
+      await saveTaskNow(updated);
     }
   },
 
@@ -699,6 +739,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (atomicGroups) {
       try {
         const changed = await completeGroups(task.clientId, timeSpent);
+        // A RPC gravou a tarefa; uma versao local pendente nao pode passar por cima.
+        taskSaver.forget(task.id);
         await get().loadFromDB();
         if (!changed) return;
       } catch { toast.error("Não foi possível concluir a etapa. Tente novamente."); throw new Error("pipeline_save_failed"); }
@@ -712,8 +754,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
     // Direct DB write for completed task
     const completedTask = get().tasks.find(t => t.id === id);
     if (completedTask) {
-      const { error } = await db('tasks').upsert(mapTaskToDB(completedTask));
-      if (error) { await get().loadFromDB(); toast.error("Não foi possível concluir a tarefa no banco."); throw error; }
+      const result = await taskSaver.save(completedTask);
+      if (result === "rejected") { await get().loadFromDB(); toast.error("Não foi possível concluir a tarefa no banco."); throw new Error("task_save_rejected"); }
+      notifySaveResult(completedTask, result);
     }
     }
 
@@ -755,10 +798,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           createdBy: task.createdBy,
         };
         set((s) => ({ tasks: [...s.tasks, recurTask] }));
-        const mapped = mapTaskToDB(recurTask);
-        db('tasks').upsert(mapped).then(({ error: e }: any) => {
-          if (e) console.error('Recurrence task DB write failed:', e);
-        });
+        persistTask(recurTask);
       }
     }
 
@@ -814,7 +854,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
           if (advPipeline) {
             db('client_pipelines').upsert({ client_id: task.clientId, current_step_order: advPipeline.currentStepOrder, completed_steps: advPipeline.completedSteps, started_at: advPipeline.startedAt, completed_at: advPipeline.completedAt || null }).then(({ error }: any) => { if (error) console.error('completeTask pipeline DB:', error); });
           }
-          db('tasks').upsert(mapTaskToDB(nextTask)).then(({ error }: any) => { if (error) console.error('completeTask next task DB:', error); });
+          persistTask(nextTask);
           const advClient = get().clients.find(c => c.id === task.clientId);
           if (advClient) db('clients').update(mapClientToDB(advClient)).eq('id', advClient.id).then(({ error }: any) => { if (error) console.error('completeTask client DB:', error); });
         } else {
@@ -992,9 +1032,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         toast.error(`Falha ao salvar requisição: ${error.message ?? error}`);
       }
     });
-    db('tasks').upsert(mapTaskToDB(task)).then(({ error }: any) => {
-      if (error) console.error('Direct addRequest task DB write failed:', error);
-    });
+    persistTask(task);
   },
 
   updateRequest: (id, data) => {
@@ -1018,6 +1056,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       if (error) console.error('Direct deleteRequest DB write failed:', error);
     });
     if (req?.taskId) {
+      taskSaver.forget(req.taskId);
       db('tasks').delete().eq('id', req.taskId).then(({ error }: any) => {
         if (error) console.error('Direct deleteRequest task DB write failed:', error);
       });
@@ -1045,9 +1084,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (req.taskId) {
       const updatedTask = get().tasks.find(t => t.id === req.taskId);
       if (updatedTask) {
-        db('tasks').upsert(mapTaskToDB(updatedTask)).then(({ error }: any) => {
-          if (error) console.error('Direct redistributeRequest task DB write failed:', error);
-        });
+        persistTask(updatedTask);
       }
     }
   },
